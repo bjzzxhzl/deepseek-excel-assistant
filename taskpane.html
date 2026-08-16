@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DeepSeek Excel 助手</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="brand">🧠 DeepSeek Excel 助手<span class="ver">v0.28</span><span id="env" class="env">Office.js 加载中…</span></div>
+  <div class="toolbar">
+    <button id="btnSidebar" class="ghost" title="显示/收起对话记录侧边栏">☰ 会话记录</button>
+    <button id="btnTheme" class="ghost" title="切换明暗主题">🌙</button>
+    <button id="btnSettings" class="ghost" title="API 接入 / 技能管理 / 外观 / 数据管理">⚙ 设置</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside id="sidebar">
+    <div class="side-head"><span>对话记录</span></div>
+    <div class="side-search"><input type="text" id="convSearch" placeholder="🔍 搜索对话…"></div>
+    <div id="convList" class="conv-list"></div>
+    <div class="side-foot"><button id="btnNew" style="width:100%">＋ 新对话</button></div>
+  </aside>
+
+  <main>
+    <div class="chatwrap">
+      <div id="chat"></div>
+      <div id="emptyState" class="empty-state" style="display:none"></div>
+      <div id="log"></div>
+      <div class="chatbar">
+        <label>模型
+          <select id="model"></select>
+        </label>
+        <label>推理
+          <select id="effort">
+            <option value="high">高（默认）</option>
+            <option value="low">低</option>
+            <option value="max">最大</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="thinking" checked> 思考</label>
+        <label>上下文
+          <select id="ctxMode">
+            <option value="selection">当前单元格/选区</option>
+            <option value="sheet">当前工作表</option>
+            <option value="workbook">整个工作簿</option>
+          </select>
+        </label>
+        <label>技能
+          <select id="skillSel"></select>
+        </label>
+        <label>权限
+          <select id="permission">
+            <option value="ask">🔐 请求批准</option>
+            <option value="auto">⚡ 替我批准</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="autoAttach" checked> 自动附加</label>
+        <button class="ghost" id="btnAttach" title="上传附件（txt/csv/md/json/xlsx）">📎 附件</button>
+        <input type="file" id="fileInput" multiple style="display:none">
+        <button class="ghost small" id="clearFiles" title="清空附件" style="display:none">✕</button>
+        <span id="fileList" class="fileList"></span>
+      </div>
+      <div id="quickbar" class="quickbar" style="display:none"></div>
+      <div class="inputRow">
+        <textarea id="input" rows="3" placeholder="输入问题…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <button id="btnStop" class="ghost" style="display:none" title="停止生成">⏹ 停止</button>
+        <button id="send">发送</button>
+      </div>
+      <div id="status">就绪</div>
+    </div>
+  </main>
+</div>
+
+<!-- 设置弹窗 -->
+<div id="settingsModal" class="modal">
+  <div class="modalBox wide">
+    <div class="modalTitleRow">
+      <div class="modalTitle">⚙ 设置</div>
+      <button id="btnCloseSettings" class="ghost small" title="关闭">✕</button>
+    </div>
+    <div class="settingsBody">
+      <h3>🔌 API 接入</h3>
+      <div class="row">
+        <label>供应商
+          <select id="provider"></select>
+        </label>
+        <input id="customBase" placeholder="https://你的网关/v1" style="display:none">
+      </div>
+      <div class="row">
+        <label>API Key <input type="password" id="apikey" placeholder="sk-…"></label>
+        <button class="ghost" id="saveKey">保存</button>
+        <button class="ghost" id="clearKey">清除</button>
+        <button id="testConn">测试连接</button>
+      </div>
+      <div id="connResult" class="hint"></div>
+      <div id="modelHint" class="hint"></div>
+
+      <h3>🛠 技能管理</h3>
+      <div class="row">
+        <input id="skillName" placeholder="自定义技能名称" style="width:140px">
+        <input id="skillInstr" placeholder="技能指令（如：你以财报分析师身份…）" style="width:260px">
+        <button class="ghost" id="addSkill">添加技能</button>
+      </div>
+      <div class="row">
+        <button class="ghost" id="btnExportSkills">导出技能 JSON</button>
+        <button class="ghost" id="btnImportSkills">导入技能 JSON</button>
+      </div>
+      <div id="skillResult" class="hint"></div>
+      <div id="skillList" class="skill-list"></div>
+
+      <h3>⚡ 快捷指令</h3>
+      <div class="row">
+        <input id="quickLabel" placeholder="按钮名（如 翻译选区）" style="width:140px">
+        <input id="quickPrompt" placeholder="指令内容（点击按钮后填入输入框的文字）" style="width:260px">
+        <button class="ghost" id="addQuick">添加快捷指令</button>
+      </div>
+      <div id="quickResult" class="hint"></div>
+      <div id="quickList" class="skill-list"></div>
+
+      <h3>🎨 外观</h3>
+      <div class="row">
+        <label>主色
+          <select id="accent">
+            <option value="#4f7cff">蓝</option>
+            <option value="#8e5cf5">紫</option>
+            <option value="#2fae6b">绿</option>
+            <option value="#e8823a">橙</option>
+          </select>
+        </label>
+        <label>字号
+          <select id="fontSize">
+            <option value="12">小</option>
+            <option value="13">中</option>
+            <option value="15">大</option>
+          </select>
+        </label>
+      </div>
+
+      <h3>💾 数据管理</h3>
+      <div class="row">
+        <button class="ghost" id="btnExport">导出 JSON（复制）</button>
+        <button class="ghost" id="btnExportSheet">导出到工作表</button>
+        <button class="ghost" id="btnImport">导入 JSON</button>
+        <button class="ghost" id="btnTools">🧰 工具清单</button>
+      </div>
+      <div id="storageInfo" class="hint"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 通用确认/输入弹窗 -->
+<div id="modal" class="modal">
+  <div class="modalBox">
+    <div class="modalTitle" id="modalTitle"></div>
+    <pre class="modalBody" id="modalBody"></pre>
+    <div id="modalInputRow"><input type="text" class="modalInput" id="modalInput"></div>
+    <div class="modalBtns">
+      <button id="modalExtra" class="ghost" style="display:none"></button>
+      <button id="modalOk">确定</button>
+      <button id="modalCancel" class="ghost">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

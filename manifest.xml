@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xsi:type="TaskPaneApp">
+  <Id>7c1e9a24-5d3f-4b8e-9c2a-0f6d1b4e8a5c</Id>
+  <Version>0.2.0.0</Version>
+  <ProviderName>DSH</ProviderName>
+  <DefaultLocale>zh-CN</DefaultLocale>
+  <DisplayName DefaultValue="DeepSeek Excel 助手"/>
+  <Description DefaultValue="将 DeepSeek V4 的 Agent 能力接入 Excel：上下文、模型与推理等级、API 管理、对话记录、外观、技能与文件上传"/>
+  <Hosts>
+    <Host Name="Workbook"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="http://localhost:8090/taskpane.html?v=28"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="dsx.group">
+                <Label resid="grp.label"/>
+                <Icon>
+                  <bt:Image size="16" resid="icon.16"/>
+                  <bt:Image size="32" resid="icon.32"/>
+                  <bt:Image size="80" resid="icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="dsx.open">
+                  <Label resid="btn.label"/>
+                  <Supertip>
+                    <Title resid="btn.label"/>
+                    <Description resid="btn.desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon.16"/>
+                    <bt:Image size="32" resid="icon.32"/>
+                    <bt:Image size="80" resid="icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="taskpane.url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon.16" DefaultValue="http://localhost:8090/icon16.png"/>
+        <bt:Image id="icon.32" DefaultValue="http://localhost:8090/icon32.png"/>
+        <bt:Image id="icon.80" DefaultValue="http://localhost:8090/icon80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="taskpane.url" DefaultValue="http://localhost:8090/taskpane.html?v=28"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="grp.label" DefaultValue="DeepSeek"/>
+        <bt:String id="btn.label" DefaultValue="DeepSeek 助手"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="btn.desc" DefaultValue="打开 DeepSeek Excel 助手（点击后才开启，不会自动弹出）"/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
