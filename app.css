@@ -10,15 +10,16 @@
 * { box-sizing:border-box; }
 html,body { margin:0; height:100%; }
 body { font-family:"Segoe UI","Microsoft YaHei",sans-serif; font-size:var(--fs); background:var(--bg); color:var(--fg); display:flex; flex-direction:column; overflow:hidden; }
-header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--panel); }
-.brand { font-weight:700; font-size:14px; }
-.ver { font-weight:400; font-size:10px; color:var(--dim); margin-left:6px; padding:1px 6px; border:1px solid var(--border); border-radius:8px; }
-.env { font-weight:400; font-size:11px; color:var(--dim); margin-left:8px; }
+header { min-height:44px; display:flex; align-items:center; justify-content:space-between; padding:5px 8px; border-bottom:1px solid var(--border); background:var(--panel); }
 .toolbar { display:flex; gap:6px; }
 button { background:var(--accent); color:#fff; border:none; border-radius:5px; padding:5px 11px; cursor:pointer; font-size:12px; }
 button:hover { filter:brightness(1.08); }
 button.ghost { background:transparent; color:var(--fg); border:1px solid var(--border); }
 button.small { padding:2px 7px; font-size:11px; }
+.header-icon { width:34px; height:34px; padding:0; display:grid; place-items:center; color:var(--fg); background:transparent; border:0; border-radius:7px; }
+.header-icon:hover { background:var(--panel2); filter:none; }
+.header-icon.is-open { color:var(--accent); background:var(--panel2); }
+.header-icon svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
 .layout { flex:1; display:flex; overflow:hidden; }
 aside { width:185px; min-width:150px; border-right:1px solid var(--border); background:var(--panel); display:flex; flex-direction:column; }
 .side-head { display:flex; align-items:center; justify-content:space-between; padding:8px; font-size:12px; font-weight:600; border-bottom:1px solid var(--border); }

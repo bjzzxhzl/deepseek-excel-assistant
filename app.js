@@ -187,7 +187,14 @@ function applyTheme() {
 function applySidebar() {
   const open = !!SETTINGS.sidebarOpen;
   $('sidebar').style.display = open ? '' : 'none';
-  $('btnSidebar').textContent = open ? '✕ 收起会话' : '☰ 会话记录';
+  const button = $('btnSidebar');
+  const label = open ? '收起会话记录' : '显示会话记录';
+  button.title = label;
+  button.classList[open ? 'add' : 'remove']('is-open');
+  if (button.setAttribute) {
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-expanded', String(open));
+  }
 }
 
 /* ================= 模态框 ================= */
@@ -244,8 +251,7 @@ function showToolCatalog() {
 let officeReady = false;
 Office.onReady(() => {
   officeReady = true;
-  const ok = Office.context.requirements && Office.context.requirements.isSetSupported('ExcelApi', '1.1');
-  $('env').textContent = '· Excel API ' + (ok ? '可用' : '不可用（请用 Excel 打开）');
+  // 顶部不再显示品牌、版本或 API 状态；只保留屏幕阅读器可识别的交互控件。
 });
 
 /* ================= Excel 上下文（默认：当前单元格/选区） ================= */

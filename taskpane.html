@@ -5,13 +5,17 @@
 <title>DeepSeek Excel 助手</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=35">
 </head>
 <body>
 <header>
-  <div class="brand">🧠 DeepSeek Excel 助手<span class="ver">v0.34</span><span id="env" class="env">Office.js 加载中…</span></div>
+  <button id="btnSidebar" class="header-icon sidebar-toggle" title="显示会话记录" aria-label="显示会话记录" aria-expanded="false">
+    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <rect x="2.75" y="3.25" width="14.5" height="13.5" rx="3"></rect>
+      <path d="M8.25 3.5v13"></path>
+    </svg>
+  </button>
   <div class="toolbar">
-    <button id="btnSidebar" class="ghost" title="显示/收起对话记录侧边栏">☰ 会话记录</button>
     <button id="btnTheme" class="ghost" title="切换明暗主题">🌙</button>
     <button id="btnSettings" class="ghost" title="API 接入 / 技能管理 / 外观 / 数据管理">⚙ 设置</button>
   </div>
@@ -166,6 +170,6 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>
