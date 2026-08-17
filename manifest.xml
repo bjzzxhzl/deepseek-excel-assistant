@@ -4,13 +4,13 @@
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
            xsi:type="TaskPaneApp">
   <Id>7c1e9a24-5d3f-4b8e-9c2a-0f6d1b4e8a5c</Id>
-  <Version>1.0.36.0</Version>
+  <Version>1.0.37.0</Version>
   <ProviderName>DSH</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
   <DisplayName DefaultValue="DeepSeek Excel 助手"/>
   <Description DefaultValue="将 DeepSeek V4 的 Agent 能力接入 Excel：上下文、模型与推理等级、API 管理、对话记录、外观、技能与文件上传"/>
-  <IconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon32.png?v=36"/>
-  <HighResolutionIconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon80.png?v=36"/>
+  <IconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon32.png?v=37"/>
+  <HighResolutionIconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon64.png?v=37"/>
   <SupportUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/"/>
   <AppDomains>
     <AppDomain>https://bjzzxhzl.github.io</AppDomain>
@@ -24,14 +24,13 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/taskpane.html?v=36"/>
+    <SourceLocation DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/taskpane.html?v=37"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
     <Requirements>
       <bt:Sets DefaultMinVersion="1.1">
-        <bt:Set Name="AddinCommands"/>
-        <bt:Set Name="ExcelApi" MinVersion="1.9"/>
+        <bt:Set Name="AddinCommands" MinVersion="1.1"/>
       </bt:Sets>
     </Requirements>
     <Hosts>
@@ -70,12 +69,12 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="icon.16" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon16.png?v=36"/>
-        <bt:Image id="icon.32" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon32.png?v=36"/>
-        <bt:Image id="icon.80" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon80.png?v=36"/>
+        <bt:Image id="icon.16" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon16.png?v=37"/>
+        <bt:Image id="icon.32" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon32.png?v=37"/>
+        <bt:Image id="icon.80" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon80.png?v=37"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="taskpane.url" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/taskpane.html?v=36"/>
+        <bt:Url id="taskpane.url" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/taskpane.html?v=37"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="grp.label" DefaultValue="DeepSeek"/>
