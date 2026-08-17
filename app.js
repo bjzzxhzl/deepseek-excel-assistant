@@ -6,40 +6,88 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 function md(t) {
   let out = '';
   String(t ?? '').split('```').forEach((p, i) => {
-    if (i % 2 === 1) out += '<pre>' + esc(p) + '</pre>';
+    if (i % 2 === 1) out += '<pre>' + esc(p.replace(/^[a-z0-9_+-]+\r?\n/i, '')) + '</pre>';
     else out += mdInline(p);
   });
   return out;
 }
-/* 行内渲染：支持 markdown 表格、行内代码与加粗 */
+/* 安全的 Markdown 子集：标题、列表、引用、分隔线、表格、粗斜体与行内代码。 */
+function mdInlineText(value) {
+  return esc(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/__([^_]+)__/g, '<b>$1</b>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
+    .replace(/(^|[^_])_([^_\n]+)_/g, '$1<i>$2</i>');
+}
 function mdInline(p) {
-  const tokens = [];
-  let tableBuf = [];
-  const flushTable = () => {
-    if (tableBuf.length < 2) {
-      if (tableBuf.length) tokens.push(esc(tableBuf[0]));
-      tableBuf = [];
-      return;
-    }
-    const rows = tableBuf.filter(r => !/^\s*\|[\s:\-|]+\|\s*$/.test(r));
-    let h = '<table class="md-table">';
-    rows.forEach((row, i) => {
-      const cells = row.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => c.trim());
-      h += '<tr>';
-      for (const c of cells) h += (i === 0 ? '<th>' : '<td>') + esc(c) + (i === 0 ? '</th>' : '</td>');
-      h += '</tr>';
-    });
-    h += '</table>';
-    tokens.push(h);
-    tableBuf = [];
+  const lines = String(p ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const blocks = [];
+  let plain = [];
+  let listType = '';
+  let listItems = [];
+  const flushPlain = () => {
+    if (plain.length) blocks.push(plain.map(mdInlineText).join('<br>'));
+    plain = [];
   };
-  for (const line of p.split('\n')) {
-    if (/^\s*\|.*\|\s*$/.test(line)) { tableBuf.push(line); continue; }
-    flushTable();
-    tokens.push(esc(line).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'));
+  const flushList = () => {
+    if (listType && listItems.length) blocks.push('<' + listType + '>' + listItems.map(x => '<li>' + mdInlineText(x) + '</li>').join('') + '</' + listType + '>');
+    listType = ''; listItems = [];
+  };
+  const cells = line => line.replace(/^\s*\||\|\s*$/g, '').split('|').map(x => x.trim());
+  const isDivider = line => /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes('|') && i + 1 < lines.length && isDivider(lines[i + 1])) {
+      flushPlain(); flushList();
+      const tableRows = [cells(line)];
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+        tableRows.push(cells(lines[i])); i++;
+      }
+      i--;
+      let table = '<table class="md-table">';
+      tableRows.forEach((row, rowIndex) => {
+        table += '<tr>' + row.map(cell => rowIndex === 0 ? '<th>' + mdInlineText(cell) + '</th>' : '<td>' + mdInlineText(cell) + '</td>').join('') + '</tr>';
+      });
+      blocks.push(table + '</table>');
+      continue;
+    }
+    const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (heading) {
+      flushPlain(); flushList();
+      const level = heading[1].length;
+      blocks.push('<h' + level + ' class="md-heading">' + mdInlineText(heading[2]) + '</h' + level + '>');
+      continue;
+    }
+    const list = line.match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
+    if (list) {
+      flushPlain();
+      const nextType = list[2] ? 'ol' : 'ul';
+      if (listType && listType !== nextType) flushList();
+      listType = nextType; listItems.push(list[3]);
+      continue;
+    }
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) {
+      flushPlain(); flushList();
+      const quoteLines = [quote[1]];
+      while (i + 1 < lines.length && /^\s*>/.test(lines[i + 1])) quoteLines.push(lines[++i].replace(/^\s*>\s?/, ''));
+      blocks.push('<blockquote>' + quoteLines.map(mdInlineText).join('<br>') + '</blockquote>');
+      continue;
+    }
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushPlain(); flushList(); blocks.push('<hr>'); continue;
+    }
+    if (!line.trim()) {
+      flushPlain(); flushList(); continue;
+    }
+    if (listType) flushList();
+    plain.push(line);
   }
-  flushTable();
-  return tokens.join('<br>');
+  flushPlain(); flushList();
+  return blocks.join('');
 }
 
 /* 上下文截断：超长内容保留头尾，避免截断在关键信息处 */
@@ -114,7 +162,7 @@ const TOOLS = [
 
 /* ================= 状态 ================= */
 let SETTINGS = {
-  provider: 'https://api.deepseek.com', customBase: '', apikey: '', model: 'deepseek-v4-flash',
+  provider: 'https://api.deepseek.com', customBase: '', customProviderName: '', apikey: '', model: 'deepseek-v4-flash',
   thinking: true, effort: 'high', ctxMode: 'selection', autoAttach: true,
   skillId: '', accent: '#4f7cff', fontSize: 13, dark: true, sidebarOpen: false, permission: 'ask'
 };
@@ -130,10 +178,21 @@ let attachedFiles = []; // {name, text}
 let skills = [...DEFAULT_SKILLS];
 let convFilter = ''; // 会话搜索过滤词
 let quickPrompts = [...DEFAULT_QUICK];
+let customProviders = [];
+let editingCustomProviderId = null;
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random().toString(16).slice(2));
 const curConv = () => CONVS.find(c => c.id === currentId);
-const getBaseUrl = () => SETTINGS.provider === 'custom' ? SETTINGS.customBase.trim().replace(/\/+$/, '') : SETTINGS.provider;
+const customProviderKey = id => 'custom:' + id;
+const getCustomProvider = (value = SETTINGS.provider) => {
+  if (!String(value).startsWith('custom:')) return null;
+  const id = String(value).slice(7);
+  return customProviders.find(p => p.id === id) || null;
+};
+const getBaseUrl = () => {
+  const custom = getCustomProvider();
+  return (custom ? (SETTINGS.customBase || custom.baseUrl) : SETTINGS.provider).trim().replace(/\/+$/, '');
+};
 
 /* 生成控制 */
 let activeAbort = null;
@@ -147,8 +206,14 @@ function loadState() {
     const cs = JSON.parse(localStorage.getItem(LSP + 'convs')); if (Array.isArray(cs)) CONVS = cs;
     const sk = JSON.parse(localStorage.getItem(LSP + 'skills')); if (Array.isArray(sk)) skills = sk;
     const qp = JSON.parse(localStorage.getItem(LSP + 'quick')); if (Array.isArray(qp)) quickPrompts = qp;
+    const cp = JSON.parse(localStorage.getItem(LSP + 'providers')); if (Array.isArray(cp)) customProviders = cp.filter(p => p && p.id && p.name && p.baseUrl);
     currentId = localStorage.getItem(LSP + 'current') || null;
   } catch (e) { /* 忽略损坏数据 */ }
+  if (SETTINGS.provider === 'custom' && SETTINGS.customBase) {
+    const migrated = { id: uid(), name: SETTINGS.customProviderName || '自定义供应商', baseUrl: SETTINGS.customBase, model: SETTINGS.model };
+    customProviders.push(migrated); SETTINGS.provider = customProviderKey(migrated.id);
+  }
+  if (String(SETTINGS.provider).startsWith('custom:') && !getCustomProvider()) SETTINGS.provider = 'https://api.deepseek.com';
   if (!CONVS.length) { CONVS = [{ id: uid(), title: '新对话', messages: [], updatedAt: Date.now() }]; currentId = CONVS[0].id; }
   if (!curConv()) currentId = CONVS[0].id;
 }
@@ -157,6 +222,7 @@ function saveState() {
     localStorage.setItem(LSP + 'settings', JSON.stringify(SETTINGS));
     localStorage.setItem(LSP + 'skills', JSON.stringify(skills));
     localStorage.setItem(LSP + 'quick', JSON.stringify(quickPrompts));
+    localStorage.setItem(LSP + 'providers', JSON.stringify(customProviders));
     localStorage.setItem(LSP + 'current', currentId);
   } catch (e) { /* 极小项失败可忽略 */ }
   try {
@@ -1252,6 +1318,7 @@ function renderFileList() {
 function syncSettings() {
   SETTINGS.apikey = $('apikey').value.trim();
   SETTINGS.customBase = $('customBase').value.trim();
+  SETTINGS.customProviderName = $('customProviderName').value.trim();
   SETTINGS.model = $('model').value.trim();
   updateModelHint();
 }
@@ -1259,7 +1326,8 @@ function syncSettings() {
 function buildModelOptions() {
   const sel = $('model');
   sel.innerHTML = '';
-  const opts = MODEL_OPTIONS[SETTINGS.provider] || MODEL_OPTIONS['https://api.deepseek.com'];
+  const opts = [...(MODEL_OPTIONS[SETTINGS.provider] || MODEL_OPTIONS['https://api.deepseek.com'])];
+  if (getCustomProvider() && SETTINGS.model && !opts.some(p => p[0] === SETTINGS.model)) opts.push([SETTINGS.model, SETTINGS.model + '（自定义）']);
   for (const [v, label] of opts) {
     const o = document.createElement('option');
     o.value = v; o.textContent = label;
@@ -1277,12 +1345,17 @@ function populateSettings() {
     o.value = key; o.textContent = PROVIDERS[key].name;
     sel.appendChild(o);
   }
-  const oc = document.createElement('option');
-  oc.value = 'custom'; oc.textContent = '自定义…';
-  sel.appendChild(oc);
-  sel.value = SETTINGS.provider in PROVIDERS ? SETTINGS.provider : (SETTINGS.provider === 'custom' ? 'custom' : 'https://api.deepseek.com');
-  $('customBase').value = SETTINGS.customBase;
-  $('customBase').style.display = sel.value === 'custom' ? '' : 'none';
+  for (const provider of customProviders) {
+    const option = document.createElement('option');
+    option.value = customProviderKey(provider.id); option.textContent = provider.name;
+    sel.appendChild(option);
+  }
+  const addOption = document.createElement('option');
+  addOption.value = '__add_custom__'; addOption.textContent = '＋ 添加自定义供应商…';
+  sel.appendChild(addOption);
+  if (!(SETTINGS.provider in PROVIDERS) && !getCustomProvider()) SETTINGS.provider = 'https://api.deepseek.com';
+  sel.value = SETTINGS.provider;
+  renderCustomProviderEditor(getCustomProvider());
   $('apikey').value = SETTINGS.apikey;
   buildModelOptions();
   $('thinking').checked = SETTINGS.thinking;
@@ -1299,6 +1372,45 @@ function populateSettings() {
   renderFileList();
   renderStorageInfo();
   updateModelHint();
+}
+
+function renderCustomProviderEditor(provider, creating = false) {
+  const row = $('customProviderFields');
+  if (!row) return;
+  const show = creating || !!provider;
+  row.style.display = show ? 'flex' : 'none';
+  editingCustomProviderId = provider ? provider.id : null;
+  $('customProviderName').value = provider ? provider.name : '';
+  $('customBase').value = provider ? provider.baseUrl : '';
+  $('saveCustomProvider').textContent = provider ? '更新供应商' : '添加供应商';
+  if (provider) {
+    SETTINGS.customProviderName = provider.name;
+    SETTINGS.customBase = provider.baseUrl;
+  }
+}
+
+function saveCustomProviderFromForm() {
+  const name = $('customProviderName').value.trim();
+  const baseUrl = $('customBase').value.trim().replace(/\/+$/, '');
+  const result = $('providerResult');
+  if (!name || !baseUrl) { result.textContent = '⚠ 请填写供应商名称和 API 地址'; return; }
+  try {
+    const parsed = new URL(baseUrl);
+    if (!/^https?:$/.test(parsed.protocol)) throw new Error('protocol');
+  } catch (e) { result.textContent = '⚠ API 地址必须是完整的 http:// 或 https:// 地址'; return; }
+  const duplicate = customProviders.find(p => p.id !== editingCustomProviderId && p.name.toLowerCase() === name.toLowerCase());
+  if (duplicate) { result.textContent = '⚠ 已存在同名供应商'; return; }
+  let provider = customProviders.find(p => p.id === editingCustomProviderId);
+  if (provider) {
+    provider.name = name; provider.baseUrl = baseUrl; provider.model = SETTINGS.model;
+  } else {
+    provider = { id: uid(), name, baseUrl, model: SETTINGS.model };
+    customProviders.push(provider);
+  }
+  SETTINGS.provider = customProviderKey(provider.id);
+  SETTINGS.customProviderName = name; SETTINGS.customBase = baseUrl;
+  saveState(); populateSettings();
+  result.textContent = '✓ 已保存供应商「' + name + '」，可继续从下拉框添加其他供应商';
 }
 
 function updateModelHint() {
@@ -1403,15 +1515,24 @@ function bindEvents() {
   $('saveKey').onclick = () => { SETTINGS.apikey = $('apikey').value.trim(); saveState(); setStatus('API Key 已保存'); };
   $('clearKey').onclick = () => { SETTINGS.apikey = ''; $('apikey').value = ''; saveState(); setStatus('API Key 已清除'); };
   $('customBase').onchange = e => { SETTINGS.customBase = e.target.value.trim(); saveState(); };
+  $('customProviderName').onchange = e => { SETTINGS.customProviderName = e.target.value.trim(); };
+  $('saveCustomProvider').onclick = saveCustomProviderFromForm;
 
   $('provider').onchange = e => {
+    if (e.target.value === '__add_custom__') {
+      renderCustomProviderEditor(null, true);
+      $('providerResult').textContent = '填写名称和 API 地址后保存；保存后可继续添加。';
+      return;
+    }
     SETTINGS.provider = e.target.value;
-    $('customBase').style.display = e.target.value === 'custom' ? '' : 'none';
+    const custom = getCustomProvider(e.target.value);
+    renderCustomProviderEditor(custom);
     if (e.target.value in PROVIDERS) SETTINGS.model = PROVIDERS[e.target.value].model;
+    else if (custom && custom.model) SETTINGS.model = custom.model;
     buildModelOptions();
     saveState(); updateModelHint();
   };
-  $('model').onchange = e => { SETTINGS.model = e.target.value; saveState(); updateModelHint(); };
+  $('model').onchange = e => { SETTINGS.model = e.target.value; const custom = getCustomProvider(); if (custom) custom.model = e.target.value; saveState(); updateModelHint(); };
   $('effort').onchange = e => { SETTINGS.effort = e.target.value; saveState(); };
   $('thinking').onchange = e => { SETTINGS.thinking = e.target.checked; saveState(); };
   $('ctxMode').onchange = e => { SETTINGS.ctxMode = e.target.value; saveState(); };
@@ -1549,3 +1670,4 @@ populateSettings();
 bindEvents();
 renderConvList();
 renderChat();
+

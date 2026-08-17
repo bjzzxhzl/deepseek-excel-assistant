@@ -6,7 +6,7 @@
 <title>DeepSeek Excel 助手</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="app.css?v=36">
+<link rel="stylesheet" href="app.css?v=38">
 </head>
 <body>
 <header>
@@ -93,8 +93,13 @@
         <label>供应商
           <select id="provider"></select>
         </label>
-        <input id="customBase" placeholder="https://你的网关/v1" style="display:none">
       </div>
+      <div class="row custom-provider-fields" id="customProviderFields" style="display:none">
+        <input id="customProviderName" placeholder="供应商名称，如 公司网关">
+        <input id="customBase" placeholder="https://你的网关/v1">
+        <button class="ghost" id="saveCustomProvider">添加供应商</button>
+      </div>
+      <div id="providerResult" class="hint"></div>
       <div class="row">
         <label>API Key <input type="password" id="apikey" placeholder="sk-…"></label>
         <button class="ghost" id="saveKey">保存</button>
@@ -171,6 +176,7 @@
   </div>
 </div>
 
-<script src="app.js?v=36"></script>
+<script src="app.js?v=38"></script>
 </body>
 </html>
+
