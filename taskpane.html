@@ -6,8 +6,8 @@
 <title>ExcelAI</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<link rel="icon" type="image/png" href="icon32.png?v=39">
-<link rel="stylesheet" href="app.css?v=39">
+<link rel="icon" type="image/png" href="icon32.png?v=40">
+<link rel="stylesheet" href="app.css?v=40">
 </head>
 <body>
 <header>
@@ -41,11 +41,7 @@
           <select id="model"></select>
         </label>
         <label>推理
-          <select id="effort">
-            <option value="high">高（默认）</option>
-            <option value="low">低</option>
-            <option value="max">最大</option>
-          </select>
+          <select id="effort" aria-label="当前模型的推理强度"></select>
         </label>
         <label class="chk"><input type="checkbox" id="thinking" checked> 思考</label>
         <label>上下文
@@ -128,7 +124,10 @@
             <div class="settings-field">
               <label for="provider">模型供应商</label>
               <select id="provider"></select>
-              <div class="field-help">支持官方服务、兼容网关与多个自定义供应商。</div>
+              <div class="field-help">切换后会读取该 API 的实时模型目录，并把模型与推理强度同步到主界面。</div>
+            </div>
+            <div class="settings-actions compact">
+              <button class="ghost" id="refreshModels">↻ 刷新模型</button>
             </div>
             <div class="custom-provider-fields settings-field-grid" id="customProviderFields" style="display:none">
               <div class="settings-field">
@@ -300,6 +299,6 @@
   </div>
 </div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 </body>
 </html>

@@ -7,13 +7,13 @@ ExcelAI 将多模型 Agent 能力接入 Excel，当前内置 DeepSeek V4、Silic
 | 功能 | 说明 |
 |---|---|
 | Excel 上下文 | 当前单元格/选区（默认）、当前工作表、整个工作簿三种模式，聊天工具栏切换，发送时自动附加 |
-| 模型与推理等级 | deepseek-v4-flash / deepseek-v4-pro；思考模式开关 + 推理强度（低/高/最大），均在聊天工具栏 |
-| API 接入与管理 | 右上角 ⚙ 设置弹窗：官方 / SiliconFlow / OpenRouter / 可命名的多个自定义供应商；自定义名称、base_url、模型均持久化，可继续添加与切换；API Key 保存/清除；连接测试 |
+| 模型与推理等级 | 切换供应商后通过 `/models` 动态获取该 API 的可用模型并同步到聊天工具栏；模型切换时按 API 元数据重建推理强度，DeepSeek 使用 low/high/max，OpenRouter 使用各模型声明的档位，SiliconFlow 推理模型映射为 thinking_budget 预算档位 |
+| API 接入与管理 | 右上角 ⚙ 设置弹窗：DeepSeek 官方 / SiliconFlow / OpenRouter / 可命名的多个自定义供应商；API Key 与已选模型按供应商分别记忆；支持自动及手动刷新模型目录、连接测试与自定义 base_url |
 | Agent 读写与格式 | 工具调用循环；读类工具（选区/工作表/指定区域 read_range/透视表/图表/名称等）自由调用；写值/公式与格式设置（填充色/字体色/加粗/隔行相间着色）均需页面内确认弹窗 |
 | 数据透视表 | list_pivots / create_pivot（两步创建；字段通过官方推荐的 hierarchies 集合获取与添加——hierarchies.getItem 传给 rowHierarchies/dataHierarchies.add；读取不到时降级读源区域表头；逐字段容错；创建失败时列出已有透视表并提示换位置）/ read_pivot / refresh_pivot（单个或全部） |
 | 数据连接 | refresh_connections：一键刷新全部数据连接（含 Power Query 查询结果）；Power Query 查询本身的创建/编辑 Office.js 不支持 |
 | 菜单功能扩展 | 条件格式（cellValue 规则/colorScale 色阶/dataBar 数据条/iconSet 图标集）、图表（创建含图例开关/删除/列出）、表格（创建/列出，名称自动清洗）、排序、自动筛选、冻结窗格、数据验证（下拉/整数/小数/日期）、批注（增删）、迷你图、名称管理器（定义/列出/删除）、行高列宽（自动调整）、合并/拆分单元格、清除内容/格式、隐藏行/列、工作表管理（新建/重命名/删除）、打印设置（打印区域/方向/缩放/按页适配）；创建/删除/修改类弹确认，排序/筛选/冻结/行高列宽/隐藏/打印为可逆操作不弹框 |
-| 对话记录 | 侧边栏多会话（新建/切换/双击重命名/删除）+ 🔍 搜索（按标题或消息内容实时过滤），localStorage 持久化；设置弹窗内导出 JSON（复制）/导入/导出到工作表 |
+| 对话记录 | 每次打开插件默认进入空白新对话，同时完整保留历史；侧边栏支持新建/切换/双击重命名/删除与 🔍 搜索，localStorage 持久化；设置弹窗内导出 JSON（复制）/导入/导出到工作表 |
 | 外观 | 明/暗主题（右上角切换）、主色（蓝/紫/绿/橙）、字号（小/中/大），在设置弹窗 |
 | 技能 | 内置技能（数据分析师/公式助手/VBA 助手）+ 自定义技能；聊天工具栏下拉选择；设置弹窗内添加/删除/导出导入（JSON） |
 | 文件上传 | 聊天工具栏 📎 附件按钮：txt / csv / md / json / xlsx（SheetJS 解析），图片暂不支持 |
@@ -33,7 +33,7 @@ ExcelAI 将多模型 Agent 能力接入 Excel，当前内置 DeepSeek V4、Silic
 2. 仓库页面 → **Add file → Upload files** → 把 `pages\` 文件夹里的 **8 个文件**拖进去 → Commit
 3. 仓库 **Settings → Pages** → Source 选 **Deploy from a branch** → Branch 选 **main /(root)** → Save，等约 1 分钟得到地址 `https://你的用户名.github.io/deepseek-excel-assistant/`
 4. 双击 **`部署到GitHubPages.bat`** → 粘贴你的 Pages 地址 → 自动切换清单并同步到已安装目录（也可手动：`node deploy.mjs 地址`）
-5. 完全退出 Excel → 打开普通工作簿 → 点「开始」选项卡的 ExcelAI 按钮 → 确认 v0.39 页面正常打开
+5. 完全退出 Excel → 打开普通工作簿 → 点「开始」选项卡的 ExcelAI 按钮 → 确认 v0.40 页面正常打开
 6. 公网 HTTPS 模式不需要 Node.js 或本地服务。
 
 > 更新版本时：把新的 8 个文件重新上传到仓库覆盖即可（页面 URL 不变）。
@@ -41,7 +41,7 @@ ExcelAI 将多模型 Agent 能力接入 Excel，当前内置 DeepSeek V4、Silic
 ### 两种分发方式可以同时保留
 
 - **组织内用户（推荐）**：管理员进入 **Microsoft 365 管理中心 → 设置 → 集成应用 → 上传自定义应用**，上传 `manifest.xml`，并分配给用户或组。目标用户登录受支持的 Office 后，由 Microsoft 365 下发授权和清单。
-- **其他 Windows 用户**：运行 `dist\ExcelAI-Standalone-Setup-v0.39.exe`。安装器使用 `manifest-standalone.xml` 和独立本机 ID，不会覆盖集中部署版。
+- **其他 Windows 用户**：运行 `dist\ExcelAI-Standalone-Setup-v0.40.exe`。安装器使用 `manifest-standalone.xml` 和独立本机 ID，不会覆盖集中部署版。
 
 GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络或无法访问该站点时，按钮可能仍显示，但任务窗格内容无法加载。它不承担加载项授权和分发。
 
@@ -55,7 +55,7 @@ GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络�
 
 ## 安装包（exe，基于 Inno Setup）
 
-**已生成**：`dist\ExcelAI-Standalone-Setup-v0.39.exe`
+**已生成**：`dist\ExcelAI-Standalone-Setup-v0.40.exe`
 
 **其他机器安装步骤**：
 1. 关闭 Excel，双击安装包；安装器为当前用户复制文件、注册清单、安装隐藏启动载体并创建新图标快捷方式。公网 HTTPS 模式下快捷方式不启动 Node.js 或其他后台服务；如 Excel 已在运行，它会显式补载隐藏载体。
@@ -85,7 +85,8 @@ GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络�
 
 ## 技术要点（已踩坑记录）
 
-- DeepSeek V4：`thinking: {"type":"enabled"}` + `reasoning_effort`（low/high/max）；带工具调用必须回传 `reasoning_content`；`deepseek-chat/reasoner` 旧名已停用。
+- 模型目录：DeepSeek、SiliconFlow 与 OpenRouter 均通过各自 `/models` 获取；OpenRouter 的 `reasoning.supported_efforts` 可直接驱动推理强度下拉，元数据缺失时只使用供应商已公开的能力或明确标注的模型名识别。
+- 推理参数：DeepSeek 使用 `thinking` + `reasoning_effort`，OpenRouter 使用统一 `reasoning.effort`，SiliconFlow 使用 `enable_thinking` + `thinking_budget`；带工具调用时会继续回传推理内容。
 - CORS：三个供应商均放行浏览器直连，无需本地代理。
 - Office 任务窗格禁用 `window.confirm`，写入确认用页面内弹窗实现。
 - 思考链流式片段极小，需聚合显示（否则逐字换行）。
@@ -97,8 +98,8 @@ GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络�
 node excel-addin/test/app.test.mjs
 ```
 
-用 vm 沙箱加载真实 `app.js`（模拟 DOM/localStorage/fetch/Excel），163 项断言覆盖：
-md 渲染（公式不竖排回归）、SSE 流式装配（思考链+工具调用片段+finish_reason）、Agent 完整循环（工具结果与 reasoning_content 入历史）、写值确认弹窗（允许/拒绝）、格式设置（填充/字体/加粗/隔行相间偶数行着色/拒绝路径）、停止生成（中断 + 友好提示）、上下文截断策略（trimContext 头尾保留 / capGrid 行列上限）、文件附加（含 xlsx 无 SheetJS 优雅降级）、导出到工作表、localStorage 持久化、完整发送流程（上下文附加/文件注入/标题更新）、API 错误路径（401/402/400/网络失败友好提示）、技能（默认/注入/自定义添加/删除/导入导出）、主题切换、导入对话、历史渲染、会话切换与删除、侧边栏折叠、设置弹窗内结果展示、数据透视表（两步创建/字段匹配容错/双重失败友好错误/表头提示/读取/刷新/列出）、数据连接刷新、菜单功能扩展全链路、read_range 通用区域读取、表格名清洗与参数守卫、工具 Schema 合法性与名称唯一性、复制按钮、权限设置（自动批准/请求批准）、工具清单弹窗。
+用 vm 沙箱加载真实 `app.js`（模拟 DOM/localStorage/fetch/Excel），174 项断言覆盖：
+md 渲染（公式不竖排回归）、SSE 流式装配（思考链+工具调用片段+finish_reason）、Agent 完整循环（工具结果与 reasoning_content 入历史）、动态模型目录与供应商切换、模型级推理能力、DeepSeek/OpenRouter/SiliconFlow 参数映射、启动新对话、写值确认弹窗（允许/拒绝）、格式设置、停止生成、上下文截断、文件附加、导出到工作表、localStorage 持久化、完整发送流程、API 错误路径、技能、主题、导入对话、历史渲染、会话管理、设置弹窗、数据透视表、数据连接、菜单扩展、工具 Schema、复制按钮、权限设置与工具清单。
 
 ## Git 工作流
 

@@ -1,7 +1,7 @@
 ; ExcelAI - Inno Setup 安装脚本
 ; 编译: ISCC.exe setup.iss
 #define MyAppName "ExcelAI"
-#define MyAppVersion "0.39"
+#define MyAppVersion "0.40"
 #define MyAppPublisher "DSH"
 #define MyAppId "7c1e9a24-5d3f-4b8e-9c2a-0f6d1b4e8a5c"
 #define LocalAddinId "1537f254-10aa-41d5-aed2-0a00b89da104"
@@ -16,7 +16,7 @@ DefaultDirName={localappdata}\DeepSeekExcelAssistant
 DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=ExcelAI-Standalone-Setup-v0.39
+OutputBaseFilename=ExcelAI-Standalone-Setup-v0.40
 Compression=lzma2
 SolidCompression=yes
 SetupIconFile=app.ico

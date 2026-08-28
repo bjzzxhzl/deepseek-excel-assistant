@@ -10,7 +10,7 @@ if (!arg) {
   console.log('用法: node deploy.mjs <公网HTTPS地址>   或   node deploy.mjs --local');
   process.exit(1);
 }
-const v = 39;
+const v = 40;
 const base = arg === '--local' ? 'http://localhost:8090' : arg.replace(/\/+$/, '');
 let parsed;
 try { parsed = new URL(base); }

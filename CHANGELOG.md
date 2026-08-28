@@ -1,5 +1,13 @@
 # ExcelAI — 版本记录
 
+## v0.40（动态模型能力与新对话启动）
+
+- 切换 DeepSeek、SiliconFlow、OpenRouter 或自定义供应商时，实时请求该 API 的 `/models` 目录并同步到主界面；新增手动刷新、加载/失败提示和按供应商记忆 API Key 与模型
+- 推理强度改为模型级动态选项：优先读取 `reasoning.supported_efforts` 等能力元数据；DeepSeek 使用 low/high/max，OpenRouter 使用统一 `reasoning.effort`，SiliconFlow 推理模型映射到 `thinking_budget`
+- 补齐 OpenRouter 的 `reasoning` / `reasoning_details` 流式解析；无推理能力的模型自动禁用思考与强度控件，强制推理模型不再允许关闭
+- 插件每次打开默认进入空白新对话，同时完整保留历史记录；修复动态模型在页面重载前无目录缓存时回退为供应商默认模型的问题
+- 清单与静态资源升级为 `1.0.40.0` / v40；174 项自动化断言全部通过，并完成 OpenRouter 实时 381 模型、模型推理档位与 360px 窄屏 Playwright 验收
+
 ## v0.39（品牌升级、设置中心与统一发布）
 
 - 插件对外名称统一升级为 **ExcelAI**；云端集中部署清单与 Windows 本机清单同步更新到 `1.0.39.0`，保留旧安装目录、注册键、加载项 ID 与载体文件名以支持原位升级

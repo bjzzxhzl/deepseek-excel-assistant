@@ -32,7 +32,7 @@ function makeEl(id = '') {
   };
   return el;
 }
-const IDs = ['env','btnNew','btnSettings','btnTheme','btnSidebar','btnStop','btnImport','btnExport','btnExportSheet','btnTools','btnAttach','btnCloseSettings','settingsModal','sidebar','connResult','skillResult','skillList','btnExportSkills','btnImportSkills','permission','quickbar','emptyState','quickLabel','quickPrompt','addQuick','quickResult','quickList','convSearch','convList','settingsPanel','provider','customProviderFields','customProviderName','customBase','saveCustomProvider','providerResult','apikey','saveKey','clearKey','model','modelPresets','thinking','effort','testConn','modelHint','ctxMode','ctxA','ctxB','ctxC','autoAttach','readCtx','ctxPreview','skillSel','skillName','skillInstr','addSkill','fileInput','clearFiles','fileList','accent','fontSize','chat','log','input','send','status','storageInfo','modal','modalTitle','modalBody','modalInputRow','modalInput','modalOk','modalCancel','modalExtra'];
+const IDs = ['env','btnNew','btnSettings','btnTheme','btnSidebar','btnStop','btnImport','btnExport','btnExportSheet','btnTools','btnAttach','btnCloseSettings','settingsModal','sidebar','connResult','skillResult','skillList','btnExportSkills','btnImportSkills','permission','quickbar','emptyState','quickLabel','quickPrompt','addQuick','quickResult','quickList','convSearch','convList','settingsPanel','provider','customProviderFields','customProviderName','customBase','saveCustomProvider','providerResult','refreshModels','apikey','saveKey','clearKey','model','modelPresets','thinking','effort','testConn','modelHint','ctxMode','ctxA','ctxB','ctxC','autoAttach','readCtx','ctxPreview','skillSel','skillName','skillInstr','addSkill','fileInput','clearFiles','fileList','accent','fontSize','chat','log','input','send','status','storageInfo','modal','modalTitle','modalBody','modalInputRow','modalInput','modalOk','modalCancel','modalExtra'];
 const els = {}; IDs.forEach(id => els[id] = makeEl(id));
 const docProps = {}, docAttrs = {};
 const documentStub = {
@@ -159,12 +159,14 @@ const ExcelStub = {
   })
 };
 const fetchScript = [];
+const fetchCalls = [];
 function makeStream(chunks) {
   const enc = new TextEncoder();
   let i = 0;
   return { ok: true, status: 200, body: { getReader() { return { read: async () => i < chunks.length ? { done: false, value: enc.encode(chunks[i++]) } : { done: true } }; } } };
 }
 const fetchStub = async (url, opts) => {
+  fetchCalls.push({ url, opts });
   const item = fetchScript.shift();
   if (!item) throw new Error('fetch 队列为空');
   if (item.hang) {
@@ -174,6 +176,7 @@ const fetchStub = async (url, opts) => {
   }
   if (item.throwErr) throw new TypeError('Failed to fetch');
   if (item.error) return { ok: false, status: item.error.status, text: async () => item.error.text };
+  if (Object.prototype.hasOwnProperty.call(item, 'json')) return { ok: true, status: 200, text: async () => JSON.stringify(item.json) };
   return makeStream(item.chunks);
 };
 
@@ -357,6 +360,7 @@ run(`$('btnSidebar').onclick()`);
 check('再次点击收起', els.sidebar._display === 'none');
 
 /* ---------- 测试 17：设置弹窗内显示测试连接与技能结果 ---------- */
+fetchScript.push({ json: { object: 'list', data: [{ id: 'deepseek-v4-flash', object: 'model', owned_by: 'deepseek' }, { id: 'deepseek-v4-pro', object: 'model', owned_by: 'deepseek' }] } });
 fetchScript.push({ chunks: [
   'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
   'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
@@ -744,9 +748,60 @@ fetchScript.push({ chunks: [
   'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
   'data: [DONE]\n\n'
 ]});
-run(`$('apikey').value='sk-test'; $('input').value='直接发消息';`);
+run(`SETTINGS.provider='https://api.deepseek.com'; SETTINGS.model='deepseek-v4-flash'; SETTINGS.modelByProvider[SETTINGS.provider]=SETTINGS.model; buildModelOptions(); $('apikey').value='sk-test'; $('input').value='直接发消息';`);
 await run(`(async()=>{ await $('send').onclick(); })()`);
 check('发送后空态消失', els.emptyState._display === 'none');
+
+/* ---------- 测试 41：供应商模型动态发现与推理强度同步 ---------- */
+fetchScript.push({ json: { data: [
+  { id: 'openai/gpt-reason', name: 'GPT Reason', supported_parameters: ['tools', 'reasoning'], reasoning: { supported_efforts: ['high', 'medium', 'low'], default_effort: 'medium', default_enabled: true } },
+  { id: 'vendor/plain-chat', name: 'Plain Chat', supported_parameters: ['temperature'] }
+] } });
+await run(`(async()=>{
+  SETTINGS.provider='https://openrouter.ai/api/v1'; SETTINGS.apikey=''; SETTINGS.model=''; SETTINGS.modelByProvider[SETTINGS.provider]='';
+  await refreshModelCatalog({force:true,apiKey:''});
+})()`);
+check('OpenRouter 从 /models 更新主界面', els.model.children.some(o => o.value === 'openai/gpt-reason') && els.model.children.some(o => o.value === 'vendor/plain-chat'), run(`modelCatalogNotice`));
+run(`$('model').value='openai/gpt-reason'; $('model').onchange({target:$('model')});`);
+check('推理强度按模型元数据更新', els.effort.children.map(o => o.value).join(',') === 'low,medium,high' && els.thinking.disabled === false, els.effort.children.map(o => o.value).join(','));
+run(`$('model').value='vendor/plain-chat'; $('model').onchange({target:$('model')});`);
+check('非推理模型禁用强度与思考开关', els.effort.disabled === true && els.thinking.disabled === true && els.effort.value === 'none');
+fetchScript.push({ chunks: ['data: {"choices":[{"delta":{"content":"普通回答"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n'] });
+await run(`(async()=>{ await callChat([{role:'user',content:'x'}], null); })()`);
+const plainBody = JSON.parse(fetchCalls.at(-1).opts.body);
+check('未声明工具能力的模型不发送 tools', !Object.prototype.hasOwnProperty.call(plainBody, 'tools'));
+
+run(`$('model').value='openai/gpt-reason'; $('model').onchange({target:$('model')}); SETTINGS.thinking=true; SETTINGS.effort='medium';`);
+fetchScript.push({ chunks: ['data: {"choices":[{"delta":{"reasoning":"网关思考"}}]}\n\n', 'data: {"choices":[{"delta":{"content":"完成"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n'] });
+const openRouterResult = JSON.parse(await run(`(async()=>JSON.stringify(await callChat([{role:'user',content:'x'}], null)))()`));
+const openRouterBody = JSON.parse(fetchCalls.at(-1).opts.body);
+check('OpenRouter 使用统一 reasoning 参数', openRouterBody.reasoning.enabled === true && openRouterBody.reasoning.effort === 'medium');
+check('OpenRouter reasoning 字段可流式聚合', openRouterResult.reasoning === '网关思考');
+run(`delete modelCatalogs['https://openrouter.ai/api/v1']; buildModelOptions();`);
+check('重载前无目录缓存也保留供应商所选模型', els.model.value === 'openai/gpt-reason');
+
+/* ---------- 测试 42：切换 SiliconFlow 自动刷新并映射 thinking_budget ---------- */
+fetchScript.push({ json: { object: 'list', data: [
+  { id: 'Qwen/Qwen3-8B', object: 'model' },
+  { id: 'meta-llama/Llama-3.3-70B-Instruct', object: 'model' }
+] } });
+await run(`(async()=>{
+  SETTINGS.apiKeys['https://api.siliconflow.cn/v1']='sk-sf';
+  $('provider').onchange({target:{value:'https://api.siliconflow.cn/v1'}});
+  for(let i=0;i<30 && !(modelCatalogs['https://api.siliconflow.cn/v1'] && modelCatalogs['https://api.siliconflow.cn/v1'].models.length);i++) await new Promise(r=>setTimeout(r,0));
+})()`);
+check('切换供应商触发实时模型请求', fetchCalls.some(c => c.url.includes('api.siliconflow.cn/v1/models?type=text&sub_type=chat')) && els.model.children.some(o => o.value === 'Qwen/Qwen3-8B'));
+run(`$('model').value='Qwen/Qwen3-8B'; $('model').onchange({target:$('model')}); SETTINGS.thinking=true; SETTINGS.effort='high'; var __sfBody={}; applyReasoningSettings(__sfBody);`);
+const sfBody = JSON.parse(run(`JSON.stringify(__sfBody)`));
+check('SiliconFlow 推理强度映射 thinking_budget', sfBody.enable_thinking === true && sfBody.thinking_budget === 8192 && els.effort.children.some(o => o.textContent.includes('tokens')));
+
+/* ---------- 测试 43：重新打开默认进入新对话但保留历史 ---------- */
+store['dsx-mvp-convs'] = JSON.stringify([{ id: 'history-only', title: '历史分析', messages: [{ role: 'user', content: '旧内容' }], updatedAt: 1 }]);
+store['dsx-mvp-current'] = 'history-only';
+run(`CONVS=[]; currentId=null; loadState();`);
+const startupState = JSON.parse(run(`JSON.stringify({current:curConv(), ids:CONVS.map(c=>c.id)})`));
+check('插件打开默认新建空白对话', startupState.current.title === '新对话' && startupState.current.messages.length === 0);
+check('启动新对话不删除历史', startupState.ids.includes('history-only'));
 
 console.log(`\n结果: ${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

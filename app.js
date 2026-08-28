@@ -106,15 +106,25 @@ function capGrid(values, maxRows, maxCols) {
 
 /* ================= 常量 ================= */
 const LSP = 'dsx-mvp-';
-const PROVIDERS = {
-  'https://api.deepseek.com': { name: 'DeepSeek 官方', model: 'deepseek-v4-flash' },
-  'https://api.siliconflow.cn/v1': { name: 'SiliconFlow', model: 'deepseek-ai/DeepSeek-V4-Flash' },
-  'https://openrouter.ai/api/v1': { name: 'OpenRouter', model: 'deepseek/deepseek-v4-flash' }
+const EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+const EFFORT_LABELS = {
+  minimal: '极低', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最大'
 };
-const MODEL_OPTIONS = {
-  'https://api.deepseek.com': [['deepseek-v4-flash', 'V4-Flash（快）'], ['deepseek-v4-pro', 'V4-Pro（强）']],
-  'https://api.siliconflow.cn/v1': [['deepseek-ai/DeepSeek-V4-Flash', 'V4-Flash'], ['deepseek-ai/DeepSeek-V4-Pro', 'V4-Pro']],
-  'https://openrouter.ai/api/v1': [['deepseek/deepseek-v4-flash', 'V4-Flash'], ['deepseek/deepseek-v4-pro', 'V4-Pro']]
+const PROVIDERS = {
+  'https://api.deepseek.com': {
+    name: 'DeepSeek 官方', model: 'deepseek-v4-flash', requiresKey: true, reasoningStyle: 'deepseek',
+    fallbackModels: [
+      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }
+    ]
+  },
+  'https://api.siliconflow.cn/v1': {
+    name: 'SiliconFlow', model: '', requiresKey: true, reasoningStyle: 'siliconflow', modelQuery: '?type=text&sub_type=chat', fallbackModels: []
+  },
+  'https://openrouter.ai/api/v1': {
+    name: 'OpenRouter', model: 'openrouter/auto', requiresKey: false, reasoningStyle: 'openrouter',
+    fallbackModels: [{ id: 'openrouter/auto', name: 'OpenRouter Auto' }]
+  }
 };
 const DEFAULT_SKILLS = [
   { id: 'da', name: '数据分析师', instruction: '你以数据分析师身份工作：先描述数据结构，再给出关键统计量（求和/均值/最大最小/趋势），最后给出可执行的建议。' },
@@ -164,7 +174,8 @@ const TOOLS = [
 let SETTINGS = {
   provider: 'https://api.deepseek.com', customBase: '', customProviderName: '', apikey: '', model: 'deepseek-v4-flash',
   thinking: true, effort: 'high', ctxMode: 'selection', autoAttach: true,
-  skillId: '', accent: '#4f7cff', fontSize: 13, dark: true, sidebarOpen: false, permission: 'ask'
+  skillId: '', accent: '#4f7cff', fontSize: 13, dark: true, sidebarOpen: false, permission: 'ask',
+  apiKeys: {}, modelByProvider: {}
 };
 const DEFAULT_QUICK = [
   { id: 'qa1', label: '📊 分析选区', prompt: '读取我的选区并做简要分析（先总结结构，再给关键统计）' },
@@ -181,6 +192,9 @@ let quickPrompts = [...DEFAULT_QUICK];
 let customProviders = [];
 let editingCustomProviderId = null;
 let customDraft = null; // 「添加自定义供应商」尚未保存的草稿：切换下拉后回到“添加”可找回已填内容
+let modelCatalogs = Object.create(null); // baseUrl -> { models, fetchedAt }
+let modelDiscoveryToken = 0;
+let modelCatalogNotice = '';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random().toString(16).slice(2));
 const curConv = () => CONVS.find(c => c.id === currentId);
@@ -217,8 +231,24 @@ function loadState() {
     customProviders.push(migrated); SETTINGS.provider = customProviderKey(migrated.id);
   }
   if (String(SETTINGS.provider).startsWith('custom:') && !getCustomProvider()) SETTINGS.provider = 'https://api.deepseek.com';
-  if (!CONVS.length) { CONVS = [{ id: uid(), title: '新对话', messages: [], updatedAt: Date.now() }]; currentId = CONVS[0].id; }
-  if (!curConv()) currentId = CONVS[0].id;
+  if (!SETTINGS.apiKeys || typeof SETTINGS.apiKeys !== 'object' || Array.isArray(SETTINGS.apiKeys)) SETTINGS.apiKeys = {};
+  if (!SETTINGS.modelByProvider || typeof SETTINGS.modelByProvider !== 'object' || Array.isArray(SETTINGS.modelByProvider)) SETTINGS.modelByProvider = {};
+  /* 兼容旧版单 Key/单模型设置，并从此按供应商分别记忆。 */
+  if (SETTINGS.apikey && !SETTINGS.apiKeys[SETTINGS.provider]) SETTINGS.apiKeys[SETTINGS.provider] = SETTINGS.apikey;
+  if (SETTINGS.model && !SETTINGS.modelByProvider[SETTINGS.provider]) SETTINGS.modelByProvider[SETTINGS.provider] = SETTINGS.model;
+  SETTINGS.apikey = SETTINGS.apiKeys[SETTINGS.provider] || '';
+  SETTINGS.model = SETTINGS.modelByProvider[SETTINGS.provider] || (PROVIDERS[SETTINGS.provider] && PROVIDERS[SETTINGS.provider].model) || (getCustomProvider() && getCustomProvider().model) || '';
+
+  /* 每次打开任务窗格都落在空白对话；已有历史仍完整保留。复用既有空白项可避免重复堆积。 */
+  let fresh = CONVS.find(c => c && c.title === '新对话' && Array.isArray(c.messages) && c.messages.length === 0);
+  if (!fresh) {
+    fresh = { id: uid(), title: '新对话', messages: [], updatedAt: Date.now() };
+    CONVS.unshift(fresh);
+  } else {
+    fresh.updatedAt = Date.now();
+    CONVS = [fresh, ...CONVS.filter(c => c !== fresh)];
+  }
+  currentId = fresh.id;
 }
 function saveState() {
   try {
@@ -903,13 +933,39 @@ async function execTool(name, args) {
 }
 
 /* ================= API 客户端 ================= */
-async function callChat(messages, onDelta) {
-  const url = getBaseUrl() + '/chat/completions';
-  const body = { model: SETTINGS.model.trim(), messages, stream: true, tools: TOOLS };
-  if (getBaseUrl().includes('deepseek.com')) {
-    body.thinking = { type: SETTINGS.thinking ? 'enabled' : 'disabled' };
-    if (SETTINGS.thinking && SETTINGS.effort) body.reasoning_effort = SETTINGS.effort;
+function applyReasoningSettings(body) {
+  const model = selectedModelInfo();
+  if (!model || !model.supportsReasoning) return;
+  const enabled = model.mandatory || !!SETTINGS.thinking;
+  const effort = model.efforts.includes(SETTINGS.effort) ? SETTINGS.effort : (model.defaultEffort || '');
+  if (model.reasoningStyle === 'deepseek') {
+    body.thinking = { type: enabled ? 'enabled' : 'disabled' };
+    if (enabled && effort) body.reasoning_effort = effort;
+    return;
   }
+  if (model.reasoningStyle === 'openrouter') {
+    body.reasoning = { enabled };
+    if (enabled && effort) body.reasoning.effort = effort;
+    return;
+  }
+  if (model.reasoningStyle === 'siliconflow') {
+    body.enable_thinking = enabled;
+    if (enabled && effort) {
+      const budgets = { minimal: 512, low: 1024, medium: 4096, high: 8192, xhigh: 12288, max: 16384 };
+      body.thinking_budget = budgets[effort];
+    }
+    return;
+  }
+  if (effort) body.reasoning_effort = enabled ? effort : 'none';
+}
+
+async function callChat(messages, onDelta) {
+  if (!SETTINGS.model || !SETTINGS.model.trim()) throw new Error('请先获取并选择当前供应商的模型');
+  const url = getBaseUrl() + '/chat/completions';
+  const model = selectedModelInfo();
+  const body = { model: SETTINGS.model.trim(), messages, stream: true };
+  if (!model || model.supportsTools !== false) body.tools = TOOLS;
+  applyReasoningSettings(body);
 
   const ctrl = new AbortController();
   activeAbort = ctrl;
@@ -949,7 +1005,11 @@ async function callChat(messages, onDelta) {
     let j; try { j = JSON.parse(payload); } catch (e) { return; }
     const d = j.choices && j.choices[0] && j.choices[0].delta;
     if (!d) return;
-    if (d.reasoning_content) { reasoning += d.reasoning_content; onDelta && onDelta({ type: 'think', text: d.reasoning_content }); }
+    let reasoningDelta = d.reasoning_content || d.reasoning || '';
+    if (!reasoningDelta && Array.isArray(d.reasoning_details)) {
+      reasoningDelta = d.reasoning_details.map(item => item && (item.text || item.summary) || '').join('');
+    }
+    if (reasoningDelta) { reasoning += reasoningDelta; onDelta && onDelta({ type: 'think', text: reasoningDelta }); }
     if (d.content) { content += d.content; onDelta && onDelta({ type: 'text', text: d.content }); }
     if (d.tool_calls) for (const tc of d.tool_calls) {
       const k = tc.index || 0;
@@ -1322,22 +1382,230 @@ function syncSettings() {
   SETTINGS.apikey = $('apikey').value.trim();
   SETTINGS.customBase = $('customBase').value.trim();
   SETTINGS.customProviderName = $('customProviderName').value.trim();
-  SETTINGS.model = $('model').value.trim();
+  if ($('model').value) SETTINGS.model = $('model').value.trim();
   updateModelHint();
 }
 
-function buildModelOptions() {
+function getProviderConfig(providerKey = SETTINGS.provider) {
+  const preset = PROVIDERS[providerKey];
+  if (preset) return preset;
+  const custom = getCustomProvider(providerKey);
+  return { name: custom ? custom.name : '自定义供应商', model: custom ? custom.model : '', requiresKey: true, reasoningStyle: 'openai', fallbackModels: [] };
+}
+
+function normalizeEfforts(value) {
+  const list = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(/[\s,|/]+/) : []);
+  const normalized = list.map(v => String(v).toLowerCase()).filter(v => EFFORT_ORDER.includes(v));
+  return EFFORT_ORDER.filter(v => normalized.includes(v));
+}
+
+function normalizeModel(raw, providerKey = SETTINGS.provider) {
+  const id = String(raw && (raw.id || raw.model || raw.slug || raw.name) || '').trim();
+  if (!id) return null;
+  const config = getProviderConfig(providerKey);
+  const reasoningObject = raw && raw.reasoning && typeof raw.reasoning === 'object' ? raw.reasoning
+    : (raw && raw.capabilities && raw.capabilities.reasoning && typeof raw.capabilities.reasoning === 'object' ? raw.capabilities.reasoning : null);
+  const supportedParameters = Array.isArray(raw && raw.supported_parameters) ? raw.supported_parameters.map(String)
+    : (Array.isArray(raw && raw.capabilities && raw.capabilities.supported_parameters) ? raw.capabilities.supported_parameters.map(String) : []);
+  let effortValue;
+  if (reasoningObject && Object.prototype.hasOwnProperty.call(reasoningObject, 'supported_efforts')) effortValue = reasoningObject.supported_efforts;
+  else if (raw && Object.prototype.hasOwnProperty.call(raw, 'supported_reasoning_efforts')) effortValue = raw.supported_reasoning_efforts;
+  else if (raw && Object.prototype.hasOwnProperty.call(raw, 'reasoning_efforts')) effortValue = raw.reasoning_efforts;
+  else if (raw && raw.capabilities && Object.prototype.hasOwnProperty.call(raw.capabilities, 'reasoning_efforts')) effortValue = raw.capabilities.reasoning_efforts;
+
+  let efforts = normalizeEfforts(effortValue);
+  let supportsReasoning = !!(reasoningObject || (raw && raw.reasoning === true) || supportedParameters.some(p => /^(reasoning|reasoning_effort|include_reasoning|thinking|thinking_budget)$/.test(p)));
+  let effortSource = effortValue !== undefined ? 'api' : (supportsReasoning ? 'metadata' : 'none');
+  if (reasoningObject && Object.prototype.hasOwnProperty.call(reasoningObject, 'supported_efforts') && reasoningObject.supported_efforts === null) {
+    efforts = [...EFFORT_ORDER];
+    supportsReasoning = true;
+    effortSource = 'api';
+  }
+  if (providerKey === 'https://api.deepseek.com') {
+    supportsReasoning = true;
+    efforts = ['low', 'high', 'max'];
+    effortSource = 'provider';
+  } else if (providerKey === 'https://api.siliconflow.cn/v1' && !supportsReasoning && /(deepseek[-_/.]?(?:r1|v4)|qwen3|qwq|glm[-_]?z|reason|thinking|hunyuan[-_/]?t1|kimi.*thinking)/i.test(id)) {
+    supportsReasoning = true;
+    efforts = ['low', 'medium', 'high', 'max'];
+    effortSource = 'inferred';
+  } else if (!PROVIDERS[providerKey] && !supportsReasoning && /(deepseek[-_/.]?(?:r1|v4)|qwen3|qwq|reason|thinking)/i.test(id)) {
+    supportsReasoning = true;
+    efforts = ['low', 'medium', 'high', 'max'];
+    effortSource = 'inferred';
+  }
+  if (supportsReasoning && !efforts.length && reasoningObject && reasoningObject.supports_max_tokens) {
+    efforts = ['low', 'medium', 'high', 'max'];
+    effortSource = 'api';
+  }
+  const defaultEffort = String(reasoningObject && reasoningObject.default_effort || raw && raw.default_reasoning_effort || '').toLowerCase();
+  return {
+    id,
+    name: String(raw && (raw.name || raw.display_name) || id),
+    supportsReasoning,
+    efforts,
+    defaultEffort: EFFORT_ORDER.includes(defaultEffort) ? defaultEffort : '',
+    defaultEnabled: reasoningObject && typeof reasoningObject.default_enabled === 'boolean' ? reasoningObject.default_enabled : null,
+    mandatory: !!(reasoningObject && reasoningObject.mandatory),
+    supportsTools: supportedParameters.length ? supportedParameters.some(p => p === 'tools' || p === 'tool_choice') : null,
+    effortSource,
+    reasoningStyle: config.reasoningStyle || 'openai'
+  };
+}
+
+function fallbackModels(providerKey = SETTINGS.provider) {
+  const config = getProviderConfig(providerKey);
+  const rows = [...(config.fallbackModels || [])];
+  const custom = getCustomProvider(providerKey);
+  const remembered = SETTINGS.modelByProvider && SETTINGS.modelByProvider[providerKey];
+  const rememberedModel = (custom && custom.model) || remembered;
+  if (rememberedModel && !rows.some(row => row.id === rememberedModel)) rows.push({ id: rememberedModel, name: rememberedModel });
+  return rows.map(row => normalizeModel(row, providerKey)).filter(Boolean);
+}
+
+function activeModels() {
+  const cached = modelCatalogs[getBaseUrl()];
+  return cached && cached.models && cached.models.length ? cached.models : fallbackModels();
+}
+
+function selectedModelInfo() {
+  return activeModels().find(model => model.id === SETTINGS.model) || null;
+}
+
+function effortLabel(value, model) {
+  let label = EFFORT_LABELS[value] || value;
+  if (model && model.reasoningStyle === 'siliconflow') {
+    const budgets = { minimal: 512, low: 1024, medium: 4096, high: 8192, xhigh: 12288, max: 16384 };
+    label += ' · ' + budgets[value].toLocaleString() + ' tokens';
+  }
+  if (value === (model && model.defaultEffort)) label += '（默认）';
+  return label;
+}
+
+function buildEffortOptions(model = selectedModelInfo()) {
+  const sel = $('effort');
+  const thinking = $('thinking');
+  sel.innerHTML = '';
+  if (!model || !model.supportsReasoning) {
+    const option = document.createElement('option');
+    option.value = 'none'; option.textContent = model ? '该模型不支持' : '暂无模型';
+    sel.appendChild(option); sel.value = 'none'; sel.disabled = true;
+    thinking.checked = false; thinking.disabled = true;
+    return;
+  }
+  thinking.disabled = !!model.mandatory;
+  thinking.checked = model.mandatory ? true : !!SETTINGS.thinking;
+  const efforts = model.efforts.length ? model.efforts : ['auto'];
+  for (const value of efforts) {
+    const option = document.createElement('option');
+    option.value = value; option.textContent = value === 'auto' ? '自动（模型默认）' : effortLabel(value, model);
+    sel.appendChild(option);
+  }
+  let preferred = SETTINGS.effort;
+  if (!efforts.includes(preferred)) preferred = efforts.includes(model.defaultEffort) ? model.defaultEffort : (efforts.includes('high') ? 'high' : efforts[0]);
+  SETTINGS.effort = preferred;
+  sel.value = preferred;
+  sel.disabled = !thinking.checked || efforts.length < 2;
+}
+
+function buildModelOptions({ loading = false } = {}) {
   const sel = $('model');
   sel.innerHTML = '';
-  const opts = [...(MODEL_OPTIONS[SETTINGS.provider] || MODEL_OPTIONS['https://api.deepseek.com'])];
-  if (getCustomProvider() && SETTINGS.model && !opts.some(p => p[0] === SETTINGS.model)) opts.push([SETTINGS.model, SETTINGS.model + '（自定义）']);
-  for (const [v, label] of opts) {
+  const models = activeModels();
+  if (!models.length) {
     const o = document.createElement('option');
-    o.value = v; o.textContent = label;
+    o.value = ''; o.textContent = loading ? '正在获取模型…' : '保存 API Key 后获取模型'; o.disabled = true;
+    sel.appendChild(o);
+    sel.value = ''; sel.disabled = true; SETTINGS.model = '';
+    buildEffortOptions(null);
+    return;
+  }
+  for (const model of models) {
+    const o = document.createElement('option');
+    o.value = model.id;
+    o.textContent = (model.name !== model.id ? model.name + ' · ' + model.id : model.id) + (model.supportsTools === false ? ' · 无工具' : '');
+    o.title = model.id + (model.supportsReasoning ? ' · 支持推理' : ' · 未声明可调推理') + (model.supportsTools === false ? ' · 未声明工具调用' : '');
     sel.appendChild(o);
   }
-  if (!opts.some(p => p[0] === SETTINGS.model)) SETTINGS.model = opts[0][0];
+  const config = getProviderConfig();
+  if (!models.some(model => model.id === SETTINGS.model)) {
+    const preferred = SETTINGS.modelByProvider[SETTINGS.provider] || config.model;
+    SETTINGS.model = models.some(model => model.id === preferred) ? preferred : models[0].id;
+  }
   sel.value = SETTINGS.model;
+  sel.disabled = !!loading;
+  SETTINGS.modelByProvider[SETTINGS.provider] = SETTINGS.model;
+  const custom = getCustomProvider();
+  if (custom) custom.model = SETTINGS.model;
+  buildEffortOptions(selectedModelInfo());
+}
+
+function modelEndpoint(baseUrl, providerKey) {
+  const config = getProviderConfig(providerKey);
+  return baseUrl + '/models' + (config.modelQuery || '');
+}
+
+function discoveryError(status, text) {
+  if (status === 401 || status === 403) return 'API Key 无权读取模型列表（' + status + '）';
+  if (status === 429) return '模型列表请求过于频繁（429）';
+  return '获取模型失败：HTTP ' + status + (text ? ' · ' + text.slice(0, 120) : '');
+}
+
+async function refreshModelCatalog({ force = false, apiKey = null, silent = false } = {}) {
+  const providerKey = SETTINGS.provider;
+  const baseUrl = getBaseUrl();
+  const config = getProviderConfig(providerKey);
+  const cached = modelCatalogs[baseUrl];
+  if (cached && !force) { buildModelOptions(); updateModelHint(); return { models: cached.models, cached: true }; }
+  const key = apiKey === null ? (SETTINGS.apiKeys[providerKey] || SETTINGS.apikey || '') : apiKey;
+  if (config.requiresKey && !key) {
+    modelCatalogNotice = '请先保存当前供应商的 API Key，再获取实时模型列表。';
+    buildModelOptions(); updateModelHint();
+    if (!silent && $('providerResult')) $('providerResult').textContent = '⚠ ' + modelCatalogNotice;
+    return { skipped: true, models: activeModels() };
+  }
+
+  const token = ++modelDiscoveryToken;
+  if (!cached) buildModelOptions({ loading: true });
+  modelCatalogNotice = '正在从 ' + config.name + ' 获取模型列表…';
+  updateModelHint();
+  if (!silent && $('providerResult')) $('providerResult').textContent = modelCatalogNotice;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const headers = { 'Accept': 'application/json' };
+    if (key) headers.Authorization = 'Bearer ' + key;
+    const response = await fetch(modelEndpoint(baseUrl, providerKey), { method: 'GET', headers, signal: ctrl.signal });
+    const responseText = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(discoveryError(response.status, responseText));
+    let payload;
+    try { payload = JSON.parse(responseText); } catch (e) { throw new Error('模型接口返回的不是有效 JSON'); }
+    let rows = Array.isArray(payload) ? payload : (Array.isArray(payload.data) ? payload.data : (Array.isArray(payload.models) ? payload.models : []));
+    const dedup = new Map();
+    for (const row of rows) {
+      const model = normalizeModel(row, providerKey);
+      if (model && !dedup.has(model.id)) dedup.set(model.id, model);
+    }
+    const models = [...dedup.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+    if (!models.length) throw new Error('模型接口没有返回可用的对话模型');
+    modelCatalogs[baseUrl] = { models, fetchedAt: Date.now() };
+    if (SETTINGS.provider === providerKey && getBaseUrl() === baseUrl && token === modelDiscoveryToken) {
+      modelCatalogNotice = '✓ 已从 ' + config.name + ' 获取 ' + models.length + ' 个模型。';
+      buildModelOptions(); saveState(); updateModelHint();
+      if (!silent && $('providerResult')) $('providerResult').textContent = modelCatalogNotice;
+    }
+    return { models };
+  } catch (error) {
+    const message = error && error.name === 'AbortError' ? '获取模型超时（20 秒）' : String(error && error.message || error);
+    if (SETTINGS.provider === providerKey && getBaseUrl() === baseUrl && token === modelDiscoveryToken) {
+      modelCatalogNotice = '⚠ ' + message + '；已保留上次列表或供应商备用项。';
+      buildModelOptions(); updateModelHint();
+      if (!silent && $('providerResult')) $('providerResult').textContent = modelCatalogNotice;
+    }
+    return { error: message, models: activeModels() };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function populateSettings() {
@@ -1361,8 +1629,6 @@ function populateSettings() {
   renderCustomProviderEditor(getCustomProvider());
   $('apikey').value = SETTINGS.apikey;
   buildModelOptions();
-  $('thinking').checked = SETTINGS.thinking;
-  $('effort').value = SETTINGS.effort;
   $('ctxMode').value = SETTINGS.ctxMode;
   $('autoAttach').checked = SETTINGS.autoAttach;
   $('permission').value = SETTINGS.permission;
@@ -1406,13 +1672,15 @@ function saveCustomProviderFromForm() {
   if (duplicate) { result.textContent = '⚠ 已存在同名供应商'; return; }
   let provider = customProviders.find(p => p.id === editingCustomProviderId);
   if (provider) {
-    provider.name = name; provider.baseUrl = baseUrl; provider.model = SETTINGS.model;
+    provider.name = name; provider.baseUrl = baseUrl;
   } else {
-    provider = { id: uid(), name, baseUrl, model: SETTINGS.model };
+    provider = { id: uid(), name, baseUrl, model: '' };
     customProviders.push(provider);
   }
   SETTINGS.provider = customProviderKey(provider.id);
   SETTINGS.customProviderName = name; SETTINGS.customBase = baseUrl;
+  SETTINGS.apikey = SETTINGS.apiKeys[SETTINGS.provider] || '';
+  SETTINGS.model = SETTINGS.modelByProvider[SETTINGS.provider] || provider.model || '';
   customDraft = null;
   saveState(); populateSettings();
   result.textContent = '✓ 已保存供应商「' + name + '」，可继续从下拉框添加其他供应商';
@@ -1445,6 +1713,8 @@ function onCustomFieldChange(field, input) {
     }
     if (normalized !== provider.baseUrl) {
       provider.baseUrl = normalized;
+      modelCatalogNotice = '';
+      if (SETTINGS.apiKeys[SETTINGS.provider]) void refreshModelCatalog({ force: true });
       if (result) result.textContent = '✓ API 地址已保存：' + normalized;
     }
   } else {
@@ -1467,14 +1737,24 @@ function onCustomFieldChange(field, input) {
 }
 
 function updateModelHint() {
-  const m = SETTINGS.model.toLowerCase();
-  if (m.includes('reasoner') || m.includes('r1') || m === 'deepseek-chat') {
+  const model = selectedModelInfo();
+  const m = String(SETTINGS.model || '').toLowerCase();
+  if (SETTINGS.provider === 'https://api.deepseek.com' && (m === 'deepseek-reasoner' || m === 'deepseek-chat')) {
     $('modelHint').textContent = '注意：deepseek-chat / deepseek-reasoner 旧模型名已进入停用流程，请用 V4 模型';
-  } else if (!getBaseUrl().includes('deepseek.com')) {
-    $('modelHint').textContent = '网关提示：思考模式与推理强度参数仅官方 API 生效，网关按各自默认行为执行';
-  } else {
-    $('modelHint').textContent = 'V4 说明：思考模式默认开启；推理强度 low/high/max（medium、xhigh 映射为 high）；思考模式下 temperature 等不生效';
+    return;
   }
+  if (!model) {
+    $('modelHint').textContent = modelCatalogNotice || '保存此供应商的 API Key 后，ExcelAI 会从 /models 获取实时模型并同步到主界面。';
+    return;
+  }
+  let capability = '当前模型未声明可调推理强度，调用时不会发送推理参数。';
+  if (model.supportsReasoning) {
+    const levels = model.efforts.length ? model.efforts.map(v => EFFORT_LABELS[v] || v).join(' / ') : '自动';
+    const source = model.effortSource === 'api' ? 'API 元数据' : model.effortSource === 'provider' ? '供应商官方能力' : model.effortSource === 'inferred' ? '模型名识别' : '模型元数据';
+    capability = '当前模型推理强度：' + levels + '（来源：' + source + '）。';
+  }
+  if (model.supportsTools === false) capability += ' 该模型未声明工具调用，ExcelAI 将仅发送对话与已附加的表格上下文。';
+  $('modelHint').textContent = (modelCatalogNotice ? modelCatalogNotice + ' ' : '') + capability;
 }
 
 /* 快捷指令 */
@@ -1603,8 +1883,27 @@ function bindEvents() {
     });
   }
 
-  $('saveKey').onclick = () => { SETTINGS.apikey = $('apikey').value.trim(); saveState(); setStatus('API Key 已保存'); };
-  $('clearKey').onclick = () => { SETTINGS.apikey = ''; $('apikey').value = ''; saveState(); setStatus('API Key 已清除'); };
+  $('saveKey').onclick = () => {
+    SETTINGS.apikey = $('apikey').value.trim();
+    if (SETTINGS.apikey) SETTINGS.apiKeys[SETTINGS.provider] = SETTINGS.apikey;
+    else delete SETTINGS.apiKeys[SETTINGS.provider];
+    saveState();
+    setStatus('API Key 已按供应商保存，正在刷新模型…');
+    void refreshModelCatalog({ force: true, apiKey: SETTINGS.apikey }).then(result => {
+      setStatus(result.error ? '⚠ API Key 已保存；' + result.error : '✓ API Key 已保存，模型列表已更新');
+    });
+  };
+  $('clearKey').onclick = () => {
+    SETTINGS.apikey = ''; $('apikey').value = '';
+    delete SETTINGS.apiKeys[SETTINGS.provider];
+    modelCatalogNotice = '当前供应商的 API Key 已清除。';
+    saveState(); buildModelOptions(); updateModelHint(); setStatus('API Key 已清除');
+  };
+  $('refreshModels').onclick = async () => {
+    syncSettings();
+    const result = await refreshModelCatalog({ force: true, apiKey: SETTINGS.apikey });
+    setStatus(result.error ? '⚠ ' + result.error : (result.skipped ? '请先填写 API Key' : '✓ 模型列表已刷新'));
+  };
   $('customBase').onchange = e => onCustomFieldChange('base', e.target);
   $('customProviderName').onchange = e => onCustomFieldChange('name', e.target);
   $('saveCustomProvider').onclick = saveCustomProviderFromForm;
@@ -1615,17 +1914,29 @@ function bindEvents() {
       $('providerResult').textContent = '填写名称和 API 地址后保存；保存后可继续添加。';
       return;
     }
+    if (SETTINGS.model) SETTINGS.modelByProvider[SETTINGS.provider] = SETTINGS.model;
     SETTINGS.provider = e.target.value;
     const custom = getCustomProvider(e.target.value);
     renderCustomProviderEditor(custom);
-    if (e.target.value in PROVIDERS) SETTINGS.model = PROVIDERS[e.target.value].model;
-    else if (custom && custom.model) SETTINGS.model = custom.model;
-    buildModelOptions();
+    SETTINGS.apikey = SETTINGS.apiKeys[SETTINGS.provider] || '';
+    $('apikey').value = SETTINGS.apikey;
+    SETTINGS.model = SETTINGS.modelByProvider[SETTINGS.provider] || (PROVIDERS[e.target.value] && PROVIDERS[e.target.value].model) || (custom && custom.model) || '';
+    modelCatalogNotice = '';
+    const config = getProviderConfig();
+    const shouldDiscover = !config.requiresKey || !!SETTINGS.apikey;
+    buildModelOptions({ loading: shouldDiscover });
     saveState(); updateModelHint();
+    if (shouldDiscover) void refreshModelCatalog({ force: true });
+    else if ($('providerResult')) $('providerResult').textContent = '请保存「' + config.name + '」的 API Key，随后会自动获取模型。';
   };
-  $('model').onchange = e => { SETTINGS.model = e.target.value; const custom = getCustomProvider(); if (custom) custom.model = e.target.value; saveState(); updateModelHint(); };
+  $('model').onchange = e => {
+    SETTINGS.model = e.target.value;
+    SETTINGS.modelByProvider[SETTINGS.provider] = SETTINGS.model;
+    const custom = getCustomProvider(); if (custom) custom.model = e.target.value;
+    buildEffortOptions(selectedModelInfo()); saveState(); updateModelHint();
+  };
   $('effort').onchange = e => { SETTINGS.effort = e.target.value; saveState(); };
-  $('thinking').onchange = e => { SETTINGS.thinking = e.target.checked; saveState(); };
+  $('thinking').onchange = e => { SETTINGS.thinking = e.target.checked; buildEffortOptions(selectedModelInfo()); saveState(); };
   $('ctxMode').onchange = e => { SETTINGS.ctxMode = e.target.value; saveState(); };
   $('autoAttach').onchange = e => { SETTINGS.autoAttach = e.target.checked; saveState(); };
   $('permission').onchange = e => { SETTINGS.permission = e.target.value; saveState(); setStatus('敏感操作权限：' + (e.target.value === 'auto' ? '替我批准（自动放行）' : '请求批准（每次确认）')); };
@@ -1665,6 +1976,8 @@ function bindEvents() {
     setGenerating(true);
     out('测试连接中…');
     try {
+      const catalog = await refreshModelCatalog({ force: true, apiKey: SETTINGS.apikey, silent: true });
+      if (!SETTINGS.model) throw new Error(catalog.error || '没有可用的对话模型');
       const t0 = Date.now();
       const r = await callChat([{ role: 'system', content: systemPrompt() }, { role: 'user', content: '请只回复：ok' }], null);
       out('✓ 连接成功（' + (Date.now() - t0) + ' ms）：' + (r.content || '(空)').slice(0, 40) + (r.reasoning ? '；思考链 ' + r.reasoning.length + ' 字符' : ''));
@@ -1755,9 +2068,14 @@ if (typeof location !== 'undefined' && location.origin) {
   }, 120000);
 }
 loadState();
+saveState();
 applyTheme();
 applySidebar();
 populateSettings();
 bindEvents();
 renderConvList();
 renderChat();
+const initialProviderConfig = getProviderConfig();
+if (!initialProviderConfig.requiresKey || SETTINGS.apikey) {
+  setTimeout(() => { void refreshModelCatalog({ force: true }); }, 0);
+}

@@ -16,9 +16,9 @@ echo 正在生成隐藏启动载体...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0generate-autoload-workbook.ps1" || exit /b 1
 echo 正在编译 Inno Setup 安装包...
 "%ISCC%" "%~dp0setup.iss"
-if exist "%~dp0dist\ExcelAI-Standalone-Setup-v0.39.exe" (
+if exist "%~dp0dist\ExcelAI-Standalone-Setup-v0.40.exe" (
   echo.
-  echo 完成！安装包位置：%~dp0dist\ExcelAI-Standalone-Setup-v0.39.exe
+  echo 完成！安装包位置：%~dp0dist\ExcelAI-Standalone-Setup-v0.40.exe
 ) else (
   echo 编译未成功，请检查上方日志。
   exit /b 1

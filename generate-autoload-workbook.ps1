@@ -2,7 +2,7 @@ param(
   [string]$SourceWorkbook = (Join-Path $PSScriptRoot 'DeepSeekExcelAssistant-MacroSource.xlsm'),
   [string]$OutputPath = (Join-Path $PSScriptRoot 'DeepSeekExcelAssistant-Standalone-Autoload.xlsm'),
   [string]$AddinId = '1537f254-10aa-41d5-aed2-0a00b89da104',
-  [string]$AddinVersion = '1.0.39.0'
+  [string]$AddinVersion = '1.0.40.0'
 )
 
 $ErrorActionPreference = 'Stop'
