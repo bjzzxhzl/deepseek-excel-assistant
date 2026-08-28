@@ -1,5 +1,5 @@
 'use strict';
-/* DeepSeek Excel 助手 — MVP 核心逻辑 */
+/* ExcelAI — Excel Agent 核心逻辑 */
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -180,6 +180,7 @@ let convFilter = ''; // 会话搜索过滤词
 let quickPrompts = [...DEFAULT_QUICK];
 let customProviders = [];
 let editingCustomProviderId = null;
+let customDraft = null; // 「添加自定义供应商」尚未保存的草稿：切换下拉后回到“添加”可找回已填内容
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random().toString(16).slice(2));
 const curConv = () => CONVS.find(c => c.id === currentId);
@@ -191,7 +192,9 @@ const getCustomProvider = (value = SETTINGS.provider) => {
 };
 const getBaseUrl = () => {
   const custom = getCustomProvider();
-  return (custom ? (SETTINGS.customBase || custom.baseUrl) : SETTINGS.provider).trim().replace(/\/+$/, '');
+  /* 自定义供应商一律以记录中的 baseUrl 为准；不再回退到 SETTINGS.customBase（该字段只是镜像，
+     若优先用它，切走再切回时会出现「请求地址与已保存记录不一致」的错乱） */
+  return (custom ? custom.baseUrl : SETTINGS.provider).trim().replace(/\/+$/, '');
 };
 
 /* 生成控制 */
@@ -1380,8 +1383,9 @@ function renderCustomProviderEditor(provider, creating = false) {
   const show = creating || !!provider;
   row.style.display = show ? 'flex' : 'none';
   editingCustomProviderId = provider ? provider.id : null;
-  $('customProviderName').value = provider ? provider.name : '';
-  $('customBase').value = provider ? provider.baseUrl : '';
+  /* 新建模式若存在未保存草稿则回填，避免切到其他供应商再切回后填写内容丢失 */
+  $('customProviderName').value = provider ? provider.name : (creating && customDraft ? customDraft.name : '');
+  $('customBase').value = provider ? provider.baseUrl : (creating && customDraft ? customDraft.base : '');
   $('saveCustomProvider').textContent = provider ? '更新供应商' : '添加供应商';
   if (provider) {
     SETTINGS.customProviderName = provider.name;
@@ -1409,8 +1413,57 @@ function saveCustomProviderFromForm() {
   }
   SETTINGS.provider = customProviderKey(provider.id);
   SETTINGS.customProviderName = name; SETTINGS.customBase = baseUrl;
+  customDraft = null;
   saveState(); populateSettings();
   result.textContent = '✓ 已保存供应商「' + name + '」，可继续从下拉框添加其他供应商';
+}
+
+/* 编辑当前自定义供应商：名称/地址失焦（change）即写回供应商记录并持久化。
+   修复「改了地址没点保存按钮、切走再切回后改动丢失」的问题；
+   新建（添加供应商）模式下则暂存草稿，切换下拉不丢已填内容 */
+function onCustomFieldChange(field, input) {
+  const result = $('providerResult');
+  const value = input.value.trim();
+  const provider = editingCustomProviderId ? customProviders.find(p => p.id === editingCustomProviderId) : null;
+  if (!provider) {
+    const name = field === 'name' ? value : (customDraft ? customDraft.name : '');
+    const base = field === 'base' ? value : (customDraft ? customDraft.base : '');
+    customDraft = (name || base) ? { name, base } : null;
+    if (field === 'name') SETTINGS.customProviderName = value; else SETTINGS.customBase = value;
+    return;
+  }
+  if (field === 'base') {
+    if (!value) { input.value = provider.baseUrl; if (result) result.textContent = '⚠ API 地址不能为空，已还原为原地址'; return; }
+    const normalized = value.replace(/\/+$/, '');
+    try {
+      const parsed = new URL(normalized);
+      if (!/^https?:$/.test(parsed.protocol)) throw new Error('protocol');
+    } catch (e) {
+      input.value = provider.baseUrl;
+      if (result) result.textContent = '⚠ API 地址必须是完整的 http:// 或 https:// 地址，已还原为原地址';
+      return;
+    }
+    if (normalized !== provider.baseUrl) {
+      provider.baseUrl = normalized;
+      if (result) result.textContent = '✓ API 地址已保存：' + normalized;
+    }
+  } else {
+    if (!value) { input.value = provider.name; if (result) result.textContent = '⚠ 供应商名称不能为空，已还原为原名称'; return; }
+    if (customProviders.some(p => p.id !== provider.id && p.name.toLowerCase() === value.toLowerCase())) {
+      input.value = provider.name;
+      if (result) result.textContent = '⚠ 已存在同名供应商，名称未修改';
+      return;
+    }
+    if (value !== provider.name) {
+      provider.name = value;
+      const opt = Array.from($('provider').options).find(o => o.value === customProviderKey(provider.id));
+      if (opt) opt.textContent = value;
+      if (result) result.textContent = '✓ 名称已保存为「' + value + '」';
+    }
+  }
+  SETTINGS.customProviderName = provider.name;
+  SETTINGS.customBase = provider.baseUrl;
+  saveState();
 }
 
 function updateModelHint() {
@@ -1499,6 +1552,35 @@ function handleInputKey(e) {
   }
 }
 
+/* 设置面板分类导航 */
+function activateSettingsTab(tab) {
+  const buttons = Array.from(document.querySelectorAll('[data-settings-tab]'));
+  const panels = Array.from(document.querySelectorAll('[data-settings-panel]'));
+  if (!buttons.some(button => button.dataset.settingsTab === tab)) tab = 'api';
+  for (const button of buttons) {
+    const active = button.dataset.settingsTab === tab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  for (const panel of panels) {
+    const active = panel.dataset.settingsPanel === tab;
+    panel.hidden = !active;
+    panel.classList.toggle('active', active);
+  }
+  const body = document.querySelector('.settingsBody');
+  if (body) body.scrollTop = 0;
+}
+
+function openSettings() {
+  renderStorageInfo();
+  activateSettingsTab('api');
+  $('settingsModal').style.display = 'flex';
+}
+
+function closeSettings() {
+  $('settingsModal').style.display = 'none';
+}
+
 /* ================= 事件绑定 ================= */
 function bindEvents() {
   $('btnTheme').onclick = () => { SETTINGS.dark = !SETTINGS.dark; saveState(); applyTheme(); };
@@ -1509,13 +1591,22 @@ function bindEvents() {
     if (activeAbort) activeAbort.abort();
     setStatus('⏹ 已停止生成');
   };
-  $('btnSettings').onclick = () => { renderStorageInfo(); $('settingsModal').style.display = 'flex'; };
-  $('btnCloseSettings').onclick = () => { $('settingsModal').style.display = 'none'; };
+  $('btnSettings').onclick = openSettings;
+  $('btnCloseSettings').onclick = closeSettings;
+  for (const button of document.querySelectorAll('[data-settings-tab]')) {
+    button.onclick = () => activateSettingsTab(button.dataset.settingsTab);
+  }
+  $('settingsModal').onclick = e => { if (e.target === e.currentTarget) closeSettings(); };
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && $('settingsModal').style.display === 'flex') closeSettings();
+    });
+  }
 
   $('saveKey').onclick = () => { SETTINGS.apikey = $('apikey').value.trim(); saveState(); setStatus('API Key 已保存'); };
   $('clearKey').onclick = () => { SETTINGS.apikey = ''; $('apikey').value = ''; saveState(); setStatus('API Key 已清除'); };
-  $('customBase').onchange = e => { SETTINGS.customBase = e.target.value.trim(); saveState(); };
-  $('customProviderName').onchange = e => { SETTINGS.customProviderName = e.target.value.trim(); };
+  $('customBase').onchange = e => onCustomFieldChange('base', e.target);
+  $('customProviderName').onchange = e => onCustomFieldChange('name', e.target);
   $('saveCustomProvider').onclick = saveCustomProviderFromForm;
 
   $('provider').onchange = e => {
@@ -1670,4 +1761,3 @@ populateSettings();
 bindEvents();
 renderConvList();
 renderChat();
-

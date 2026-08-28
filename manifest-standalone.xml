@@ -3,12 +3,12 @@
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
            xsi:type="TaskPaneApp">
-  <Id>7c1e9a24-5d3f-4b8e-9c2a-0f6d1b4e8a5c</Id>
+  <Id>1537f254-10aa-41d5-aed2-0a00b89da104</Id>
   <Version>1.0.39.0</Version>
   <ProviderName>ExcelAI</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
-  <DisplayName DefaultValue="ExcelAI"/>
-  <Description DefaultValue="ExcelAI 将多模型 Agent 能力接入 Excel：上下文分析、数据读写、API 管理、技能与文件处理"/>
+  <DisplayName DefaultValue="ExcelAI（本机）"/>
+  <Description DefaultValue="ExcelAI Windows 本机兼容安装版；与 Microsoft 365 管理员集中部署版使用独立加载项 ID"/>
   <IconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon32.png?v=39"/>
   <HighResolutionIconUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/icon64.png?v=39"/>
   <SupportUrl DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/"/>
@@ -39,14 +39,14 @@
           <FunctionFile resid="taskpane.url"/>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
-              <Group id="dsx.group">
+              <Group id="dsx.local.group">
                 <Label resid="grp.label"/>
                 <Icon>
                   <bt:Image size="16" resid="icon.16"/>
                   <bt:Image size="32" resid="icon.32"/>
                   <bt:Image size="80" resid="icon.80"/>
                 </Icon>
-                <Control xsi:type="Button" id="dsx.open">
+                <Control xsi:type="Button" id="dsx.local.open">
                   <Label resid="btn.label"/>
                   <Supertip>
                     <Title resid="btn.label"/>
@@ -77,11 +77,11 @@
         <bt:Url id="taskpane.url" DefaultValue="https://bjzzxhzl.github.io/deepseek-excel-assistant/taskpane.html?v=39"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="grp.label" DefaultValue="ExcelAI"/>
-        <bt:String id="btn.label" DefaultValue="ExcelAI"/>
+        <bt:String id="grp.label" DefaultValue="ExcelAI 本机"/>
+        <bt:String id="btn.label" DefaultValue="ExcelAI（本机）"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="btn.desc" DefaultValue="打开 ExcelAI（点击后才开启，不会自动弹出）"/>
+        <bt:String id="btn.desc" DefaultValue="打开 ExcelAI 本机兼容版；管理员集中部署版不受此安装影响"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

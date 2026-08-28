@@ -1,0 +1,22 @@
+# Dependencies and transient tooling
+node_modules/
+.codex-tmp/
+.playwright-cli/
+output/
+
+# Generated build and test artifacts
+dist/
+outputs/
+pages/
+setup.sed
+DeepSeekExcelAssistantSetup.exe
+ExcelAISetup.exe
+DeepSeekExcelAssistant-Autoload.xlsm
+DeepSeekExcelAssistant-Standalone-Autoload.xlsm
+
+# Local runtime files
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store

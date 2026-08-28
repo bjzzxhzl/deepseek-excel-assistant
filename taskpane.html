@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DeepSeek Excel 助手</title>
+<title>ExcelAI</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="app.css?v=38">
+<link rel="icon" type="image/png" href="icon32.png?v=39">
+<link rel="stylesheet" href="app.css?v=39">
 </head>
 <body>
 <header>
@@ -18,7 +19,7 @@
   </button>
   <div class="toolbar">
     <button id="btnTheme" class="ghost" title="切换明暗主题">🌙</button>
-    <button id="btnSettings" class="ghost" title="API 接入 / 技能管理 / 外观 / 数据管理">⚙ 设置</button>
+    <button id="btnSettings" class="ghost" title="打开 ExcelAI 设置">⚙ 设置</button>
   </div>
 </header>
 
@@ -81,83 +82,206 @@
 </div>
 
 <!-- 设置弹窗 -->
-<div id="settingsModal" class="modal">
-  <div class="modalBox wide">
-    <div class="modalTitleRow">
-      <div class="modalTitle">⚙ 设置</div>
-      <button id="btnCloseSettings" class="ghost small" title="关闭">✕</button>
+<div id="settingsModal" class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="modalBox wide settings-shell">
+    <div class="settings-header">
+      <div class="settings-heading">
+        <div class="settings-logo" aria-hidden="true">AI</div>
+        <div>
+          <div class="modalTitle" id="settingsTitle">ExcelAI 设置</div>
+          <div class="settings-subtitle">管理模型接入、个性化能力与本地数据</div>
+        </div>
+      </div>
+      <button id="btnCloseSettings" class="settings-close" title="关闭设置" aria-label="关闭设置">✕</button>
     </div>
-    <div class="settingsBody">
-      <h3>🔌 API 接入</h3>
-      <div class="row">
-        <label>供应商
-          <select id="provider"></select>
-        </label>
-      </div>
-      <div class="row custom-provider-fields" id="customProviderFields" style="display:none">
-        <input id="customProviderName" placeholder="供应商名称，如 公司网关">
-        <input id="customBase" placeholder="https://你的网关/v1">
-        <button class="ghost" id="saveCustomProvider">添加供应商</button>
-      </div>
-      <div id="providerResult" class="hint"></div>
-      <div class="row">
-        <label>API Key <input type="password" id="apikey" placeholder="sk-…"></label>
-        <button class="ghost" id="saveKey">保存</button>
-        <button class="ghost" id="clearKey">清除</button>
-        <button id="testConn">测试连接</button>
-      </div>
-      <div id="connResult" class="hint"></div>
-      <div id="modelHint" class="hint"></div>
 
-      <h3>🛠 技能管理</h3>
-      <div class="row">
-        <input id="skillName" placeholder="自定义技能名称" style="width:140px">
-        <input id="skillInstr" placeholder="技能指令（如：你以财报分析师身份…）" style="width:260px">
-        <button class="ghost" id="addSkill">添加技能</button>
-      </div>
-      <div class="row">
-        <button class="ghost" id="btnExportSkills">导出技能 JSON</button>
-        <button class="ghost" id="btnImportSkills">导入技能 JSON</button>
-      </div>
-      <div id="skillResult" class="hint"></div>
-      <div id="skillList" class="skill-list"></div>
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="设置分类">
+        <button type="button" class="settings-nav-button active" data-settings-tab="api" aria-selected="true">
+          <span class="settings-nav-icon" aria-hidden="true">⌁</span><span>API 接入</span>
+        </button>
+        <button type="button" class="settings-nav-button" data-settings-tab="skills" aria-selected="false">
+          <span class="settings-nav-icon" aria-hidden="true">✦</span><span>技能管理</span>
+        </button>
+        <button type="button" class="settings-nav-button" data-settings-tab="quick" aria-selected="false">
+          <span class="settings-nav-icon" aria-hidden="true">↯</span><span>快捷指令</span>
+        </button>
+        <button type="button" class="settings-nav-button" data-settings-tab="appearance" aria-selected="false">
+          <span class="settings-nav-icon" aria-hidden="true">◐</span><span>外观</span>
+        </button>
+        <button type="button" class="settings-nav-button" data-settings-tab="data" aria-selected="false">
+          <span class="settings-nav-icon" aria-hidden="true">▤</span><span>数据管理</span>
+        </button>
+      </nav>
 
-      <h3>⚡ 快捷指令</h3>
-      <div class="row">
-        <input id="quickLabel" placeholder="按钮名（如 翻译选区）" style="width:140px">
-        <input id="quickPrompt" placeholder="指令内容（点击按钮后填入输入框的文字）" style="width:260px">
-        <button class="ghost" id="addQuick">添加快捷指令</button>
-      </div>
-      <div id="quickResult" class="hint"></div>
-      <div id="quickList" class="skill-list"></div>
+      <div class="settingsBody">
+        <section class="settings-panel active" data-settings-panel="api">
+          <div class="settings-panel-heading">
+            <div>
+              <h2>API 接入</h2>
+              <p>选择模型服务并安全保存访问密钥。</p>
+            </div>
+            <span class="settings-badge">连接</span>
+          </div>
 
-      <h3>🎨 外观</h3>
-      <div class="row">
-        <label>主色
-          <select id="accent">
-            <option value="#4f7cff">蓝</option>
-            <option value="#8e5cf5">紫</option>
-            <option value="#2fae6b">绿</option>
-            <option value="#e8823a">橙</option>
-          </select>
-        </label>
-        <label>字号
-          <select id="fontSize">
-            <option value="12">小</option>
-            <option value="13">中</option>
-            <option value="15">大</option>
-          </select>
-        </label>
-      </div>
+          <div class="settings-card">
+            <div class="settings-field">
+              <label for="provider">模型供应商</label>
+              <select id="provider"></select>
+              <div class="field-help">支持官方服务、兼容网关与多个自定义供应商。</div>
+            </div>
+            <div class="custom-provider-fields settings-field-grid" id="customProviderFields" style="display:none">
+              <div class="settings-field">
+                <label for="customProviderName">供应商名称</label>
+                <input id="customProviderName" placeholder="例如：公司网关">
+              </div>
+              <div class="settings-field settings-field-grow">
+                <label for="customBase">API 地址</label>
+                <input id="customBase" placeholder="https://你的网关/v1">
+              </div>
+              <button class="ghost settings-inline-action" id="saveCustomProvider">添加供应商</button>
+            </div>
+            <div id="providerResult" class="hint settings-result" aria-live="polite"></div>
+          </div>
 
-      <h3>💾 数据管理</h3>
-      <div class="row">
-        <button class="ghost" id="btnExport">导出 JSON（复制）</button>
-        <button class="ghost" id="btnExportSheet">导出到工作表</button>
-        <button class="ghost" id="btnImport">导入 JSON</button>
-        <button class="ghost" id="btnTools">🧰 工具清单</button>
+          <div class="settings-card">
+            <div class="settings-field">
+              <label for="apikey">API Key</label>
+              <input type="password" id="apikey" placeholder="sk-…" autocomplete="off" spellcheck="false">
+              <div class="field-help">密钥仅保存在当前 Office WebView 的本地存储中。</div>
+            </div>
+            <div class="settings-actions">
+              <button id="saveKey">保存密钥</button>
+              <button class="ghost" id="clearKey">清除</button>
+              <button class="ghost" id="testConn">测试连接</button>
+            </div>
+            <div id="connResult" class="hint settings-result" aria-live="polite"></div>
+            <div id="modelHint" class="settings-note"></div>
+          </div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="skills" hidden>
+          <div class="settings-panel-heading">
+            <div>
+              <h2>技能管理</h2>
+              <p>为 ExcelAI 添加可复用的专业角色和工作方式。</p>
+            </div>
+            <span class="settings-badge">能力</span>
+          </div>
+          <div class="settings-card">
+            <div class="settings-field-grid settings-field-grid-skill">
+              <div class="settings-field">
+                <label for="skillName">技能名称</label>
+                <input id="skillName" placeholder="例如：财报分析师">
+              </div>
+              <div class="settings-field settings-field-grow">
+                <label for="skillInstr">技能指令</label>
+                <input id="skillInstr" placeholder="例如：以财报分析师身份解释数据…">
+              </div>
+              <button class="settings-inline-action" id="addSkill">添加技能</button>
+            </div>
+            <div id="skillResult" class="hint settings-result" aria-live="polite"></div>
+          </div>
+          <div class="settings-card">
+            <div class="settings-card-title">已安装技能</div>
+            <div id="skillList" class="skill-list"></div>
+            <div class="settings-actions compact">
+              <button class="ghost" id="btnExportSkills">导出 JSON</button>
+              <button class="ghost" id="btnImportSkills">导入 JSON</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="quick" hidden>
+          <div class="settings-panel-heading">
+            <div>
+              <h2>快捷指令</h2>
+              <p>把高频任务放到新对话首页，一次点击即可开始。</p>
+            </div>
+            <span class="settings-badge">效率</span>
+          </div>
+          <div class="settings-card">
+            <div class="settings-field-grid settings-field-grid-skill">
+              <div class="settings-field">
+                <label for="quickLabel">按钮名称</label>
+                <input id="quickLabel" placeholder="例如：翻译选区">
+              </div>
+              <div class="settings-field settings-field-grow">
+                <label for="quickPrompt">指令内容</label>
+                <input id="quickPrompt" placeholder="点击后填入输入框的完整指令">
+              </div>
+              <button class="settings-inline-action" id="addQuick">添加指令</button>
+            </div>
+            <div id="quickResult" class="hint settings-result" aria-live="polite"></div>
+          </div>
+          <div class="settings-card">
+            <div class="settings-card-title">首页快捷操作</div>
+            <div id="quickList" class="skill-list"></div>
+          </div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="appearance" hidden>
+          <div class="settings-panel-heading">
+            <div>
+              <h2>外观</h2>
+              <p>调整界面强调色与阅读密度，修改会立即生效。</p>
+            </div>
+            <span class="settings-badge">界面</span>
+          </div>
+          <div class="settings-card appearance-card">
+            <div class="appearance-preview" aria-hidden="true">
+              <span></span><span></span><span></span>
+              <div class="appearance-preview-line"></div>
+              <div class="appearance-preview-bubble">ExcelAI</div>
+            </div>
+            <div class="appearance-controls">
+              <div class="settings-field">
+                <label for="accent">主色</label>
+                <select id="accent">
+                  <option value="#4f7cff">清澈蓝</option>
+                  <option value="#8e5cf5">灵感紫</option>
+                  <option value="#2fae6b">表格绿</option>
+                  <option value="#e8823a">活力橙</option>
+                </select>
+              </div>
+              <div class="settings-field">
+                <label for="fontSize">界面字号</label>
+                <select id="fontSize">
+                  <option value="12">紧凑</option>
+                  <option value="13">标准</option>
+                  <option value="15">舒适</option>
+                </select>
+              </div>
+              <div class="field-help">明暗模式可在主界面右上角随时切换。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="data" hidden>
+          <div class="settings-panel-heading">
+            <div>
+              <h2>数据管理</h2>
+              <p>备份会话、迁移历史或查看 ExcelAI 可调用的工具。</p>
+            </div>
+            <span class="settings-badge">本地</span>
+          </div>
+          <div class="settings-card">
+            <div class="data-action-grid">
+              <button class="data-action" id="btnExport"><span>⇩</span><strong>导出会话</strong><small>复制 JSON 备份</small></button>
+              <button class="data-action" id="btnExportSheet"><span>▦</span><strong>导出到工作表</strong><small>写入当前工作簿</small></button>
+              <button class="data-action" id="btnImport"><span>⇧</span><strong>导入会话</strong><small>从 JSON 恢复</small></button>
+              <button class="data-action" id="btnTools"><span>⌘</span><strong>工具清单</strong><small>查看 36 项能力</small></button>
+            </div>
+          </div>
+          <div class="settings-card storage-card">
+            <div>
+              <div class="settings-card-title">本地存储</div>
+              <div class="field-help">对话与偏好保存在当前设备，可随时导出备份。</div>
+            </div>
+            <div id="storageInfo" class="hint settings-result"></div>
+          </div>
+        </section>
       </div>
-      <div id="storageInfo" class="hint"></div>
     </div>
   </div>
 </div>
@@ -176,7 +300,6 @@
   </div>
 </div>
 
-<script src="app.js?v=38"></script>
+<script src="app.js?v=39"></script>
 </body>
 </html>
-
