@@ -33,7 +33,7 @@ ExcelAI 将多模型 Agent 能力接入 Excel，当前内置 DeepSeek V4、Silic
 2. 仓库页面 → **Add file → Upload files** → 把 `pages\` 文件夹里的 **8 个文件**拖进去 → Commit
 3. 仓库 **Settings → Pages** → Source 选 **Deploy from a branch** → Branch 选 **main /(root)** → Save，等约 1 分钟得到地址 `https://你的用户名.github.io/deepseek-excel-assistant/`
 4. 双击 **`部署到GitHubPages.bat`** → 粘贴你的 Pages 地址 → 自动切换清单并同步到已安装目录（也可手动：`node deploy.mjs 地址`）
-5. 完全退出 Excel → 打开普通工作簿 → 点「开始」选项卡的 ExcelAI 按钮 → 确认 v0.40 页面正常打开
+5. 完全退出 Excel → 打开普通工作簿 → 点「开始」选项卡的 ExcelAI 按钮 → 确认 v0.41 页面正常打开
 6. 公网 HTTPS 模式不需要 Node.js 或本地服务。
 
 > 更新版本时：把新的 8 个文件重新上传到仓库覆盖即可（页面 URL 不变）。
@@ -41,7 +41,7 @@ ExcelAI 将多模型 Agent 能力接入 Excel，当前内置 DeepSeek V4、Silic
 ### 两种分发方式可以同时保留
 
 - **组织内用户（推荐）**：管理员进入 **Microsoft 365 管理中心 → 设置 → 集成应用 → 上传自定义应用**，上传 `manifest.xml`，并分配给用户或组。目标用户登录受支持的 Office 后，由 Microsoft 365 下发授权和清单。
-- **其他 Windows 用户**：运行 `dist\ExcelAI-Standalone-Setup-v0.40.exe`。安装器使用 `manifest-standalone.xml` 和独立本机 ID，不会覆盖集中部署版。
+- **其他 Windows 用户**：运行 `dist\ExcelAI-Standalone-Setup-v0.41.exe`。安装器使用 `manifest-standalone.xml` 和独立本机 ID，不会覆盖集中部署版。
 
 GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络或无法访问该站点时，按钮可能仍显示，但任务窗格内容无法加载。它不承担加载项授权和分发。
 
@@ -55,7 +55,7 @@ GitHub Pages 只托管任务窗格页面、脚本、样式和图标。无网络�
 
 ## 安装包（exe，基于 Inno Setup）
 
-**已生成**：`dist\ExcelAI-Standalone-Setup-v0.40.exe`
+**已生成**：`dist\ExcelAI-Standalone-Setup-v0.41.exe`
 
 **其他机器安装步骤**：
 1. 关闭 Excel，双击安装包；安装器为当前用户复制文件、注册清单、安装隐藏启动载体并创建新图标快捷方式。公网 HTTPS 模式下快捷方式不启动 Node.js 或其他后台服务；如 Excel 已在运行，它会显式补载隐藏载体。
