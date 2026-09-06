@@ -1,5 +1,12 @@
 # ExcelAI — 版本记录
 
+## v0.41（修复"替我批准"对写入与格式操作失效）
+
+- 修复 `set_values`（写入单元格）与 `format_range`（设置格式）绕过权限门的缺陷：这两个工具直接调用 `openModal()` 无条件弹窗，未经过 `confirmAction()` 的权限判断，导致敏感操作权限选为"替我批准"后，写入与格式设置仍然每次弹窗要求确认
+- 其余 17 个敏感操作原本就走 `confirmAction()`，不受此问题影响
+- 补充回归测试覆盖"auto 模式下 set_values 与 format_range 不弹窗"：此前用例只在 ask 模式下测写入、只在 auto 模式下测 `clear_range`，正好漏掉这一组合
+- 清单与静态资源缓存键升级为 `1.0.41.0` / v41；176 项自动化断言全部通过
+
 ## v0.40（动态模型能力与新对话启动）
 
 - 切换 DeepSeek、SiliconFlow、OpenRouter 或自定义供应商时，实时请求该 API 的 `/models` 目录并同步到主界面；新增手动刷新、加载/失败提示和按供应商记忆 API Key 与模型

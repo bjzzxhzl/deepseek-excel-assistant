@@ -7,13 +7,13 @@ import test from 'node:test';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const read = file => readFileSync(join(root, file), 'utf8');
 
-test('ExcelAI 品牌与 v40 静态资源保持一致', () => {
+test('ExcelAI 品牌与 v41 静态资源保持一致', () => {
   const html = read('taskpane.html');
   assert.match(html, /<title>ExcelAI<\/title>/);
   assert.match(html, /ExcelAI 设置/);
   assert.doesNotMatch(html, /DeepSeek Excel (?:助手|Assistant)/);
   for (const asset of ['app.css', 'app.js', 'icon32.png']) {
-    assert.match(html, new RegExp(asset.replace('.', '\\.') + '\\?v=40'));
+    assert.match(html, new RegExp(asset.replace('.', '\\.') + '\\?v=41'));
   }
 });
 
@@ -29,14 +29,14 @@ test('设置中心包含五个一一对应的分类页', () => {
   }
 });
 
-test('云端与本机 manifest 使用独立 ID 和同一 v40 页面', () => {
+test('云端与本机 manifest 使用独立 ID 和同一 v41 页面', () => {
   const cloud = read('manifest.xml');
   const local = read('manifest-standalone.xml');
   const idOf = xml => xml.match(/<Id>([^<]+)<\/Id>/)?.[1];
   assert.notEqual(idOf(cloud), idOf(local));
   for (const [name, xml] of [['cloud', cloud], ['local', local]]) {
-    assert.match(xml, /<Version>1\.0\.40\.0<\/Version>/, name);
-    assert.match(xml, /taskpane\.html\?v=40/, name);
+    assert.match(xml, /<Version>1\.0\.41\.0<\/Version>/, name);
+    assert.match(xml, /taskpane\.html\?v=41/, name);
     assert.doesNotMatch(xml, /\?v=39/, name);
     assert.match(xml, /<ProviderName>ExcelAI<\/ProviderName>/, name);
   }
@@ -55,7 +55,7 @@ test('部署脚本同步两套 manifest 并强制公网 HTTPS', () => {
 test('本机安装器发布名已更新且保留升级兼容路径', () => {
   const setup = read('setup.iss');
   assert.match(setup, /#define MyAppName "ExcelAI"/);
-  assert.match(setup, /#define MyAppVersion "0\.40"/);
-  assert.match(setup, /OutputBaseFilename=ExcelAI-Standalone-Setup-v0\.40/);
+  assert.match(setup, /#define MyAppVersion "0\.41"/);
+  assert.match(setup, /OutputBaseFilename=ExcelAI-Standalone-Setup-v0\.41/);
   assert.match(setup, /DefaultDirName=\{localappdata\}\\DeepSeekExcelAssistant/);
 });

@@ -440,7 +440,7 @@ async function execTool(name, args) {
     });
   }
   if (name === 'set_values') {
-    const r = await openModal({
+    const r = await confirmAction({
       title: '模型请求写入 Excel',
       body: '工作表：' + args.sheet + '\n区域：' + args.address + '\n值：\n' + JSON.stringify(args.values).slice(0, 800),
       okText: '允许写入', cancelText: '拒绝'
@@ -455,7 +455,7 @@ async function execTool(name, args) {
     });
   }
   if (name === 'format_range') {
-    const r = await openModal({
+    const r = await confirmAction({
       title: '模型请求设置格式',
       body: '工作表：' + args.sheet + '\n区域：' + args.address +
         '\n填充色：' + (args.fillColor || '不变') +
